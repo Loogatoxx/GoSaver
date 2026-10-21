@@ -1,0 +1,19 @@
+# Compilation SwiftPM
+.build/
+.swiftpm/
+build/
+*.app
+DerivedData/
+
+# Secrets et clés (jamais suivis)
+.env
+*.env
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+local.properties
+
+# Divers macOS
+.DS_Store
+._*
