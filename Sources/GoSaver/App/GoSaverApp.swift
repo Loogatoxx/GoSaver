@@ -1,8 +1,11 @@
 import SwiftUI
 import AppKit
+import GoSaverCore
 
 @main
 struct GoSaverApp: App {
+    @State private var model = AtlasModel()
+
     init() {
         Snapshot.runIfRequested()
         Typo.registerBundledFonts()
@@ -10,7 +13,7 @@ struct GoSaverApp: App {
 
     var body: some Scene {
         WindowGroup("GoSaver") {
-            RootView()
+            RootView(model: model)
                 .frame(minWidth: 1000, minHeight: 680)
         }
         .windowStyle(.hiddenTitleBar)
@@ -18,55 +21,80 @@ struct GoSaverApp: App {
     }
 }
 
-/// Écran provisoire : valide la charte (polices, encres, cartouche, échelle)
-/// sur les vraies valeurs du disque, en attendant la carte 3D.
+/// Écran principal provisoire : relevé réel + registre, en attendant la carte 3D
+/// qui occupera la grande zone de gauche.
 struct RootView: View {
-    @State private var volume = VolumeSnapshot.current()
+    let model: AtlasModel
 
     var body: some View {
-        ZStack(alignment: .bottomLeading) {
-            Ink.paper.ignoresSafeArea()
-
-            VStack(alignment: .leading, spacing: Space.s5) {
-                Spacer()
-                Text("Atlas du disque").regionStyle().foregroundStyle(Ink.inkFaded)
-                Text(Bytes.format(volume.capacity - volume.used))
-                    .font(Typo.display)
-                    .foregroundStyle(Ink.ink)
-                Text("de mer libre autour de l’île. Le relevé n’a pas encore commencé.")
-                    .font(Typo.water)
-                    .foregroundStyle(Ink.sea)
-                Cartouche(
-                    title: volume.name,
-                    subtitle: "Relevé topographique du disque interne",
-                    survey: "Échelle 1 : 10 Go · \(Date.now.formatted(date: .abbreviated, time: .omitted))"
-                )
-                .frame(maxWidth: 360)
-                ScaleBar(capacity: volume.capacity, used: volume.used)
+        HStack(spacing: 0) {
+            ZStack(alignment: .bottomLeading) {
+                Ink.paper
+                VStack(alignment: .leading, spacing: Space.s5) {
+                    Spacer()
+                    headline
+                    HStack(alignment: .bottom, spacing: Space.s5) {
+                        Cartouche(
+                            title: model.volume.name,
+                            subtitle: "Relevé topographique du disque interne",
+                            survey: "Échelle 1 : 10 Go · \(Date.now.formatted(date: .abbreviated, time: .omitted))"
+                        )
+                        .frame(maxWidth: 340)
+                        Spacer()
+                        action
+                    }
+                    ScaleBar(capacity: model.volume.capacity, used: model.volume.used,
+                             reclaimable: model.reclaimableBytes)
+                }
+                .padding(Space.s7)
             }
-            .padding(Space.s7)
+            Ledger(model: model)
+                .frame(width: 340)
+        }
+        .background(Ink.paper)
+    }
+
+    /// Le grand chiffre : ce qui compte le plus à cet instant.
+    @ViewBuilder
+    private var headline: some View {
+        switch model.phase {
+        case .idle:
+            Text("Atlas du disque").regionStyle().foregroundStyle(Ink.inkFaded)
+            Text(Bytes.format(model.volume.free)).font(Typo.display).foregroundStyle(Ink.ink)
+            Text("de mer libre autour de l’île. Le relevé n’a pas encore commencé.")
+                .font(Typo.water).foregroundStyle(Ink.sea)
+        case .surveying:
+            Text("Relevé en cours").regionStyle().foregroundStyle(Ink.inkFaded)
+            Text(Bytes.format(model.bytesSoFar))
+                .font(Typo.display).foregroundStyle(Ink.ink)
+                .contentTransition(.numericText())
+            Text("relevés dans \(model.surveyedPlaces) lieux sur \(model.plannedPlaces). Le brouillard se lève.")
+                .font(Typo.water).foregroundStyle(Ink.inkFaded)
+        case .surveyed:
+            Text("Relevé terminé").regionStyle().foregroundStyle(Ink.inkFaded)
+            Text(Bytes.format(model.reclaimableBytes))
+                .font(Typo.display).foregroundStyle(Ink.vermilion)
+            Text("de marais et de grève à assécher sans risque : ils se reforment seuls ou sont déjà à la corbeille.")
+                .font(Typo.water).foregroundStyle(Ink.inkFaded)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: 520, alignment: .leading)
         }
     }
-}
 
-/// Capacité et occupation réelles du volume de démarrage.
-struct VolumeSnapshot {
-    let name: String
-    let capacity: Int64
-    let used: Int64
-
-    static func current() -> VolumeSnapshot {
-        let root = URL(fileURLWithPath: "/")
-        let values = try? root.resourceValues(forKeys: [
-            .volumeLocalizedNameKey, .volumeTotalCapacityKey, .volumeAvailableCapacityForImportantUsageKey,
-        ])
-        let capacity = Int64(values?.volumeTotalCapacity ?? 0)
-        // « Important usage » compte l'espace purgeable que macOS peut libérer : c'est le chiffre du Finder.
-        let available = values?.volumeAvailableCapacityForImportantUsage ?? 0
-        return VolumeSnapshot(
-            name: values?.volumeLocalizedName ?? "Macintosh HD",
-            capacity: capacity,
-            used: max(0, capacity - available)
-        )
+    @ViewBuilder
+    private var action: some View {
+        switch model.phase {
+        case .idle:
+            Button("Lancer le relevé") { model.startSurvey() }
+                .buttonStyle(SealButtonStyle())
+                .keyboardShortcut(.defaultAction)
+        case .surveying:
+            Button("Relevé…") {}
+                .buttonStyle(SealButtonStyle())
+                .disabled(true)
+        case .surveyed:
+            Button("Refaire le relevé") { model.startSurvey() }
+                .buttonStyle(TraceButtonStyle())
+        }
     }
 }
