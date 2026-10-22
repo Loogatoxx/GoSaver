@@ -73,6 +73,25 @@ final class AtlasModel {
         return String(place.name[..<dash.lowerBound])
     }
 
+    /// Ce que la carte doit représenter, à partir du relevé terminé.
+    func atlasInput() -> AtlasInput? {
+        guard let survey else { return nil }
+        let regions = Terrain.allCases.compactMap { terrain -> AtlasInput.RegionInput? in
+            let bytes = survey.bytes(of: terrain)
+            guard bytes > 0 else { return nil }
+            let places = landmarks(of: terrain).map { AtlasInput.PlaceInput(id: $0.id, name: $0.title, bytes: $0.bytes) }
+            return AtlasInput.RegionInput(terrain: terrain, bytes: bytes, places: places)
+        }
+        return AtlasInput(capacity: survey.volume.capacity, used: survey.volume.used, regions: regions)
+    }
+
+    /// Avant tout relevé : on connaît seulement l'espace occupé. L'île a sa vraie taille,
+    /// mais sa géographie est inconnue (une seule terre, sous le brouillard).
+    func unsurveyedInput() -> AtlasInput {
+        AtlasInput(capacity: volume.capacity, used: volume.used,
+                   regions: [.init(terrain: .fields, bytes: max(volume.used, 1), places: [])])
+    }
+
     private var task: Task<Void, Never>?
 
     func startSurvey() {
@@ -91,9 +110,14 @@ final class AtlasModel {
 
     /// Applique un relevé déjà fait (mode instantané).
     func load(_ survey: Survey) {
-        for place in survey.places { apply(.surveyed(place)) }
         apply(.finished(survey))
     }
+
+    /// Lieux reçus mais pas encore affichés : on les publie par paquets, au rythme
+    /// des évènements de progression (10 par seconde). Publier chaque lieu un par un
+    /// redessinerait le registre 1 500 fois et saturerait le fil principal.
+    private var pending: [Place] = []
+    private var pendingSurveyed = 0
 
     private func apply(_ event: SurveyEvent) {
         switch event {
@@ -102,15 +126,27 @@ final class AtlasModel {
         case .progress(let files, let bytes):
             filesSoFar = files
             bytesSoFar = bytes
+            flush()
         case .surveyed(let place):
-            surveyedPlaces += 1
-            places.append(place)
+            // Les enclaves (node_modules…) ne sont pas des lieux prévus : elles ne comptent pas dans la progression.
+            if !place.isEnclave { pendingSurveyed += 1 }
+            pending.append(place)
         case .finished(let result):
+            pending = []
+            pendingSurveyed = 0
             survey = result
             volume = result.volume
             places = result.places
             surveyedPlaces = plannedPlaces
             phase = .surveyed
         }
+    }
+
+    private func flush() {
+        guard !pending.isEmpty else { return }
+        places.append(contentsOf: pending)
+        surveyedPlaces = min(surveyedPlaces + pendingSurveyed, plannedPlaces)
+        pending = []
+        pendingSurveyed = 0
     }
 }

@@ -59,3 +59,19 @@
 - Correctif trouvé par les tests : propriétaire d'enclave décalé d'un dossier sous `/private/var`.
 
 **Objectif :** disposer de chiffres réels et fiables avant de dessiner la carte. Relevé complet du disque en ~10 s : 164 Go relevés, 7,6 Go récupérables sans risque, UTM (31,6 Go) et Claude (13,3 Go) identifiés comme les plus gros lieux.
+
+## 2026-10-22 — Carte 3D (plan-relief)
+
+**Prompt :** « Oui, commite et pousse, puis attaque la carte 3D. » — puis, en cours de route : « Faudrait aussi que l'IA puisse savoir ce qui est déplaçable ou non. »
+
+**Réponse :** commit `44f1c80` poussé ; carte 3D construite et vérifiée dans la vraie fenêtre ; la « déplaçabilité » est spécifiée dans la feuille de route (le moteur décide par règles, l'IA explique).
+
+**Modifications :**
+- `GoSaverCore/Cartography` : bruit déterministe, `Raster` (grille, distance, isolignes), `AtlasLayout` (côte organique, terrains proportionnels avec biais côtier, lieux, limite du disque, relief en couches).
+- `GoSaver/Map` : `MapPrint` (impression gravée : mer et lignes d'eau, motifs, courbes de niveau, frontières, côte, noms avec halo), `AtlasScene` (relief drapé, planche, table, lampe, éclairage d'ambiance, brouillard hachuré), `AtlasMapView` (orbite bornée à la souris/trackpad, double-clic pour revenir), `SceneRenderer` (rendu 3D hors écran pour les instantanés).
+- `AtlasModel` : lieux publiés par paquets (le relevé dans l'appli passe de plus d'une minute à 14 s), compteur de progression corrigé.
+- `PlaceNames` : correctif « com.apple.geod » → « comle.geod », conteneurs anonymes.
+- Halo papier sous l'en-tête, journaux `Log` (Console.app), 4 tests de géographie (10 tests au total).
+- `docs/FEUILLE_DE_ROUTE.md` : étapes restantes et règles de déplaçabilité.
+
+**Objectif :** donner à l'atlas son cœur visuel. Choix technique : pas de compilateur Metal sans Xcode, donc pas de shader ; on imprime une carte 2D riche et on la drape sur un relief (principe des plans-reliefs), ce qui garde la 3D et la légende parfaitement cohérentes.

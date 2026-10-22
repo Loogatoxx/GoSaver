@@ -30,9 +30,11 @@ struct RootView: View {
         HStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
                 Ink.paper
+                AtlasMapView(model: model)
                 VStack(alignment: .leading, spacing: Space.s5) {
+                    VStack(alignment: .leading, spacing: Space.s5) { headline }
+                        .modifier(PaperHalo())
                     Spacer()
-                    headline
                     HStack(alignment: .bottom, spacing: Space.s5) {
                         Cartouche(
                             title: model.volume.name,
@@ -96,5 +98,16 @@ struct RootView: View {
             Button("Refaire le relevé") { model.startSurvey() }
                 .buttonStyle(TraceButtonStyle())
         }
+    }
+}
+
+/// Halo de papier autour du texte posé sur la carte : la même technique que les
+/// noms de lieux imprimés, pour rester lisible au-dessus du relief.
+struct PaperHalo: ViewModifier {
+    func body(content: Content) -> some View {
+        content
+            .shadow(color: Ink.paper, radius: 2)
+            .shadow(color: Ink.paper, radius: 4)
+            .shadow(color: Ink.paper.opacity(0.8), radius: 10)
     }
 }

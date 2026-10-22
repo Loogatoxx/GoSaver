@@ -18,7 +18,7 @@ enum PlaceNames {
 
     static func display(raw: String) -> String {
         if let hit = cache[raw] { return hit }
-        let name = resolve(raw) ?? raw.replacingOccurrences(of: ".app", with: "")
+        let name = resolve(raw) ?? fallback(raw)
         cache[raw] = name
         return name
     }
@@ -35,11 +35,24 @@ enum PlaceNames {
         while parts.count >= 2 {
             let id = parts.joined(separator: ".")
             if let url = NSWorkspace.shared.urlForApplication(withBundleIdentifier: id) {
-                return FileManager.default.displayName(atPath: url.path)
-                    .replacingOccurrences(of: ".app", with: "")
+                return withoutAppSuffix(FileManager.default.displayName(atPath: url.path))
             }
             parts.removeLast()
         }
         return nil
+    }
+
+    /// Nom lisible quand aucune appli ne correspond.
+    private static func fallback(_ raw: String) -> String {
+        // Conteneur identifié par un UUID (8-4-4-4-12 caractères hexadécimaux) : rien de lisible.
+        if raw.count == 36, raw.split(separator: "-").map(\.count) == [8, 4, 4, 4, 12] {
+            return "Conteneur anonyme"
+        }
+        return withoutAppSuffix(raw)
+    }
+
+    /// Retire « .app » seulement en fin de nom (« com.apple.geod » doit rester intact).
+    private static func withoutAppSuffix(_ name: String) -> String {
+        name.hasSuffix(".app") ? String(name.dropLast(4)) : name
     }
 }

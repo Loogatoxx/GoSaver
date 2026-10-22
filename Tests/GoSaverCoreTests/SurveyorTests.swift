@@ -121,3 +121,48 @@ struct EnclaveTests {
         #expect(Enclave.terrain(for: URL(fileURLWithPath: path)) == expected)
     }
 }
+
+@Suite("Géographie")
+struct AtlasLayoutTests {
+    private func input(used: Int64 = 200, regions: [(Terrain, [Int64])]) -> AtlasInput {
+        AtlasInput(capacity: 250, used: used, regions: regions.map { terrain, sizes in
+            AtlasInput.RegionInput(
+                terrain: terrain, bytes: sizes.reduce(0, +),
+                places: sizes.enumerated().map { .init(id: "\(terrain)\($0.offset)", name: "\($0.offset)", bytes: $0.element) })
+        })
+    }
+
+    @Test("La terre émergée suit la part occupée du disque")
+    func landFollowsUsage() {
+        let full = AtlasLayout.build(input(used: 200, regions: [(.city, [200])]), size: 96)
+        let light = AtlasLayout.build(input(used: 100, regions: [(.city, [100])]), size: 96)
+        #expect(abs(full.landFraction - 0.8 * AtlasLayout.diskShare) < 0.02)
+        #expect(light.landFraction < full.landFraction * 0.6)
+    }
+
+    @Test("Chaque terrain occupe une surface proportionnelle à ses octets")
+    func regionAreasAreProportional() {
+        let layout = AtlasLayout.build(input(regions: [(.city, [120]), (.fields, [60]), (.marsh, [20])]), size: 128)
+        let cells = Dictionary(uniqueKeysWithValues: layout.regions.map { ($0.terrain, Double($0.cellCount)) })
+        let total = cells.values.reduce(0, +)
+        #expect(abs(cells[.city]! / total - 0.6) < 0.05)
+        #expect(abs(cells[.fields]! / total - 0.3) < 0.05)
+    }
+
+    @Test("La mer reste plate, le plus haut sommet vaut 1")
+    func heightsAreNormalized() {
+        let layout = AtlasLayout.build(input(regions: [(.massif, [80]), (.city, [120])]), size: 96)
+        for i in layout.height.values.indices where !layout.land.values[i] {
+            #expect(layout.height.values[i] == 0)
+        }
+        #expect(abs((layout.height.values.max() ?? 0) - 1) < 0.0001)
+    }
+
+    @Test("La même entrée donne toujours la même île")
+    func deterministic() {
+        let a = AtlasLayout.build(input(regions: [(.city, [150]), (.quarry, [50])]), size: 64)
+        let b = AtlasLayout.build(input(regions: [(.city, [150]), (.quarry, [50])]), size: 64)
+        #expect(a.height.values == b.height.values)
+        #expect(a.place.values == b.place.values)
+    }
+}
