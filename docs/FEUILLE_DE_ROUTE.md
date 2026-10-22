@@ -10,11 +10,12 @@
 | Relevé | Moteur parallèle en lecture seule (~10 s pour tout le disque), zones, enclaves, Registre |
 | Carte 3D | Géographie proportionnelle, limite du disque, impression gravée, plan-relief RealityKit, brouillard, caméra en orbite bornée |
 | Interaction | Visée à la souris, jalon, vol de caméra, fiche de lieu, sélection partagée avec le Registre |
+| Accès complet au disque | Détection par dossiers témoins, feuille en trois étapes, revérification au retour dans l'appli, relance |
 | Assèchement | Caches, journaux et corbeille (sur demande) ; liste blanche, revérification des chemins, applis ouvertes épargnées ; érosion animée |
 
 ## À venir (dans l'ordre)
 
-1. **Accès complet au disque** : écran d'explication et lien vers Réglages, relevé des zones aujourd'hui refusées.
+1. **Signature stable** : certificat de développement local, pour que macOS garde l'accès complet au disque d'une compilation à l'autre.
 2. **Déplaçabilité** (voir ci-dessous), puis **Outre-mer** : migration vers le Lexar, convois animés, rapatriement.
 3. **Lazaret** : enquête sur les fichiers mystères, quarantaine de 30 jours, suppression automatique.
 4. **IA locale** (Foundation Models) : propositions de rangement et explications, toujours validées par l'utilisateur.

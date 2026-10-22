@@ -123,6 +123,17 @@ final class AtlasModel {
 
     private var task: Task<Void, Never>?
 
+    // MARK: - Accès complet au disque
+
+    private(set) var diskAccess: DiskAccess.Status = DiskAccess.status()
+    var accessSheetOpen = false
+
+    /// Relit la permission (appelé quand l'appli redevient active).
+    func refreshDiskAccess() {
+        diskAccess = DiskAccess.status()
+        Log.access.notice("accès complet au disque : \(String(describing: self.diskAccess), privacy: .public)")
+    }
+
     // MARK: - Assèchement
 
     enum DrainPhase: Equatable {

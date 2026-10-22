@@ -62,6 +62,10 @@ enum Snapshot {
         if args.contains("--assechement") {
             model.previewDrain(Drainer.standard().plan())
         }
+        // `--acces` : feuille d'accès complet au disque.
+        if args.contains("--acces") {
+            model.accessSheetOpen = true
+        }
 
         for (scheme, name) in [(ColorScheme.light, "papier"), (.dark, "lampe")] {
             NSAppearance.current = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)

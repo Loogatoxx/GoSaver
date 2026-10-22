@@ -7,35 +7,24 @@ struct DrainSheet: View {
     @Bindable var model: AtlasModel
 
     var body: some View {
-        ZStack {
-            // Voile de papier : la carte reste devinable derrière.
-            Ink.paper.opacity(0.72)
-                .ignoresSafeArea()
-                .onTapGesture { if case .confirming = model.drainPhase { model.cancelDrain() } }
-
-            VStack(alignment: .leading, spacing: Space.s4) {
-                switch model.drainPhase {
-                case .planning:
-                    title("Relevé des marais…", subtitle: "On mesure ce qui peut partir. Rien n’est encore touché.")
-                case .confirming:
-                    confirming
-                case .draining(let removed):
-                    title("Assèchement en cours", subtitle: "Les applis recréeront leurs caches au besoin.")
-                    Text(Bytes.format(removed))
-                        .font(Typo.display).foregroundStyle(Ink.sea)
-                        .contentTransition(.numericText())
-                        .animation(Motion.quick, value: removed)
-                    Text("rendus à la mer").font(Typo.water).foregroundStyle(Ink.inkFaded)
-                case .done(let removed, let failures):
-                    done(removed: removed, failures: failures)
-                case .closed:
-                    EmptyView()
-                }
+        PaperModal(onDismiss: { if case .confirming = model.drainPhase { model.cancelDrain() } }) {
+            switch model.drainPhase {
+            case .planning:
+                title("Relevé des marais…", subtitle: "On mesure ce qui peut partir. Rien n’est encore touché.")
+            case .confirming:
+                confirming
+            case .draining(let removed):
+                title("Assèchement en cours", subtitle: "Les applis recréeront leurs caches au besoin.")
+                Text(Bytes.format(removed))
+                    .font(Typo.display).foregroundStyle(Ink.sea)
+                    .contentTransition(.numericText())
+                    .animation(Motion.quick, value: removed)
+                Text("rendus à la mer").font(Typo.water).foregroundStyle(Ink.inkFaded)
+            case .done(let removed, let failures):
+                done(removed: removed, failures: failures)
+            case .closed:
+                EmptyView()
             }
-            .padding(Space.s6)
-            .frame(width: 480, alignment: .leading)
-            .background(Ink.paperRaised.sheetShadow(lifted: true))
-            .overlay(DoubleRule())
         }
     }
 
@@ -147,6 +136,14 @@ struct DrainSheet: View {
                 .font(Typo.label)
                 .foregroundStyle(unreadable ? Ink.inkFaded : Ink.ochre)
                 .padding(.leading, 22)
+            if unreadable {
+                Button("Ouvrir l’accès") {
+                    model.cancelDrain()
+                    model.accessSheetOpen = true
+                }
+                .buttonStyle(NoteButtonStyle())
+                .padding(.leading, 22)
+            }
         }
         .padding(.vertical, Space.s2)
     }

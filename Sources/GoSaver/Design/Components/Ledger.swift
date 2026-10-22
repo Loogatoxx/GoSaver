@@ -39,6 +39,20 @@ struct Ledger: View {
             Text("Registre").regionStyle().foregroundStyle(Ink.inkFaded)
                 .padding(.bottom, Space.s2)
             GraduatedRule()
+            if model.diskAccess == .denied {
+                accessNotice
+            } else if model.diskAccess == .granted {
+                // Retour visible : sans lui, le bloc « Zones fermées » disparaissait sans explication.
+                HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
+                    Path { p in
+                        p.move(to: CGPoint(x: 1, y: 6)); p.addLine(to: CGPoint(x: 4.5, y: 9.5)); p.addLine(to: CGPoint(x: 11, y: 2))
+                    }
+                    .stroke(Ink.forest, style: StrokeStyle(lineWidth: 1.6, lineCap: .round, lineJoin: .round))
+                    .frame(width: 12, height: 11)
+                    Text("Accès complet au disque accordé").font(Typo.label).foregroundStyle(Ink.forest)
+                }
+                .padding(.top, Space.s3)
+            }
             if terrains.isEmpty {
                 Text("Le registre se remplit pendant le relevé.")
                     .font(Typo.water)
@@ -50,6 +64,21 @@ struct Ledger: View {
             }
         }
         .padding(Space.s5)
+    }
+
+    /// Visible dès l'ouverture tant que l'accès complet au disque manque.
+    private var accessNotice: some View {
+        VStack(alignment: .leading, spacing: Space.s2) {
+            Text("Zones fermées").font(Typo.heading).foregroundStyle(Ink.ink)
+            Text("Sans l’accès complet au disque, la corbeille et certains dossiers restent dans le brouillard.")
+                .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                .fixedSize(horizontal: false, vertical: true)
+            Button("Ouvrir l’accès") { model.accessSheetOpen = true }
+                .buttonStyle(TraceButtonStyle())
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.vertical, Space.s4)
+        .overlay(alignment: .bottom) { Rectangle().fill(Ink.contour).frame(height: Stroke.hairline) }
     }
 
     @ViewBuilder
@@ -72,6 +101,13 @@ struct Ledger: View {
             }
             .padding(.vertical, Space.s3)
 
+            // Massif : on dit franchement ce qui n'a pas pu être relevé, et comment l'ouvrir.
+            if terrain == .massif, model.diskAccess != .granted, let denied = model.survey?.deniedPaths.count, denied > 0 {
+                Text("Comprend \(denied) dossiers fermés au géomètre.")
+                    .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                    .padding(.leading, 22 + Space.s3)
+                    .padding(.bottom, Space.s2)
+            }
             ForEach(places.prefix(placesPerTerrain)) { place in
                 Button {
                     model.toggleSelection(place.id)

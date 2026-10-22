@@ -110,3 +110,37 @@
 - 6 tests de sécurité et de mise à jour (19 au total), dont un lien piégé vers les Documents.
 
 **Objectif :** première action qui libère vraiment de la place, avec des garde-fous vérifiés par des tests avant d'être confiés à l'utilisateur.
+
+## 2026-10-22 — Accès complet au disque
+
+**Prompt :** « J'ai testé l'assèchement, ça marche. Commite, pousse, puis enchaîne sur l'accès complet au disque. »
+
+**Réponse :** commit `27d037f` poussé ; détection de la permission, feuille explicative en trois étapes, points d'entrée dans le Registre (Massif) et dans la feuille d'assèchement (corbeille illisible).
+
+**Modifications :**
+- `GoSaverCore/DiskAccess.swift` : statut par dossiers témoins (liste seulement, jamais de lecture de contenu), adresse directe du panneau des Réglages ; 2 tests (21 au total).
+- `PaperModal` : feuille modale commune (voile + double filet), reprise par l'assèchement.
+- `AccessSheet` : étapes I–III (ouvrir les Réglages, activer GoSaver ou le montrer dans le Finder, relancer), statut vérifié au retour dans l'appli, « Refaire le relevé » une fois l'accès accordé.
+- `AtlasModel` : `diskAccess`, `accessSheetOpen`, revérification sur `didBecomeActive`.
+
+**Objectif :** réduire le Massif « opaque » (43 Go dont 215 dossiers refusés) et rendre la corbeille lisible, sans jamais forcer : c'est l'utilisateur qui accorde la permission.
+
+## 2026-10-22 — Accès introuvable avant le relevé
+
+**Prompt :** capture d'écran + « je comprends pas où c'est pour appuyer. »
+
+**Réponse :** défaut confirmé : le lien n'apparaissait qu'après un relevé. Corrigé.
+
+**Modifications :** bloc « Zones fermées » + bouton « Ouvrir l'accès » en tête du Registre tant que l'accès manque ; commande « GoSaver › Accès complet au disque… » dans le menu ; mention sous le Massif réduite à l'information.
+
+**Objectif :** qu'une action importante soit trouvable sans connaître l'appli.
+
+## 2026-10-22 — « Ça ne me demande plus aucune autorisation »
+
+**Prompt :** « Le registre n'est plus là mais ça ne me demande plus aucune autorisation. »
+
+**Réponse :** diagnostic par journal (`Log.access`) : l'accès avait bien été accordé (le bloc disparaît alors, c'est voulu), puis la recompilation suivante l'a fait perdre, car la signature ad hoc change à chaque fois. macOS ne demande jamais cette permission par une fenêtre : elle se donne dans les Réglages.
+
+**Modifications :** confirmation « Accès complet au disque accordé » en tête du Registre ; journal du statut d'accès à chaque vérification.
+
+**Objectif :** que l'utilisateur voie toujours où il en est ; la vraie correction (signature stable) est proposée.

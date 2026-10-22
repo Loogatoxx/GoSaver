@@ -15,8 +15,18 @@ struct GoSaverApp: App {
         WindowGroup("GoSaver") {
             RootView(model: model)
                 .frame(minWidth: 1000, minHeight: 680)
+                // Au retour des Réglages, on revérifie la permission.
+                .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                    model.refreshDiskAccess()
+                }
         }
         .windowStyle(.hiddenTitleBar)
+        .commands {
+            // Menu GoSaver › Accès complet au disque… : toujours accessible, relevé fait ou non.
+            CommandGroup(after: .appInfo) {
+                Button("Accès complet au disque…") { model.accessSheetOpen = true }
+            }
+        }
         .windowToolbarStyle(.unified(showsTitle: false))
     }
 }
@@ -73,9 +83,13 @@ struct RootView: View {
             if model.drainPhase != .closed {
                 DrainSheet(model: model)
                     .transition(.opacity)
+            } else if model.accessSheetOpen {
+                AccessSheet(model: model)
+                    .transition(.opacity)
             }
         }
         .animation(Motion.settle, value: model.drainPhase != .closed)
+        .animation(Motion.settle, value: model.accessSheetOpen)
     }
 
     /// Le grand chiffre : ce qui compte le plus à cet instant.

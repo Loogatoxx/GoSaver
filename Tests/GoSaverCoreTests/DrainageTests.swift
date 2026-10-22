@@ -131,3 +131,19 @@ struct SurveyRemovalTests {
         #expect(after.bytes(of: .fields) == 200)
     }
 }
+
+@Suite("Accès complet au disque")
+struct DiskAccessTests {
+    @Test("Un dossier témoin lisible veut dire accès accordé")
+    func readableProbe() throws {
+        let dir = FileManager.default.temporaryDirectory.appendingPathComponent("gosaver-probe-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: dir) }
+        #expect(DiskAccess.status(probes: [dir]) == .granted)
+    }
+
+    @Test("Aucun témoin existant : on ne sait pas")
+    func noProbe() {
+        #expect(DiskAccess.status(probes: [URL(fileURLWithPath: "/nexiste/pas")]) == .unknown)
+    }
+}
