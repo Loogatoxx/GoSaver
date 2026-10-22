@@ -144,3 +144,17 @@
 **Modifications :** confirmation « Accès complet au disque accordé » en tête du Registre ; journal du statut d'accès à chaque vérification.
 
 **Objectif :** que l'utilisateur voie toujours où il en est ; la vraie correction (signature stable) est proposée.
+
+## 2026-10-22 — Signature stable
+
+**Prompt :** « Oui, commite et pousse, puis crée le certificat de développement local pour que GoSaver garde l'accès complet au disque entre les compilations. »
+
+**Réponse :** commit `5c3057b` poussé ; certificat « GoSaver Dev » créé et importé ; GoSaver signé avec, identité vérifiée stable entre deux compilations.
+
+**Modifications :**
+- Certificat autosigné RSA 2048, usage « signature de code », valable 10 ans, importé dans le trousseau de connexion avec accès réservé à `codesign`. Clé privée temporaire effacée, rien dans le dépôt.
+- `scripts/bundle.sh` : signe avec « GoSaver Dev » s'il existe, sinon ad hoc (avec message).
+- Vérification : compilations debug et release → empreintes (CDHash) différentes, exigence désignée identique (`identifier "fr.carlos.gosaver" and certificate root = H"cbc74d8f…"`).
+- `docs/FEUILLE_DE_ROUTE.md` : section « Signature de développement » (vérifier, supprimer, limites).
+
+**Objectif :** ne plus perdre l'accès complet au disque à chaque recompilation. Il faut le réactiver une dernière fois, car l'identité vient de changer.

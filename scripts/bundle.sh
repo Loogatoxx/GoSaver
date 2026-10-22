@@ -38,7 +38,16 @@ cat > "$APP/Contents/Info.plist" <<PLIST
 </plist>
 PLIST
 
-# Signature « ad hoc » : pas de certificat développeur, mais macOS exige
-# une signature valide pour lancer l'appli sur Apple Silicon.
-codesign --force --deep --sign - "$APP"
+# Signature. Avec le certificat local « GoSaver Dev » (créé une fois dans le trousseau),
+# l'identité de l'appli reste la même d'une compilation à l'autre : macOS garde donc
+# l'accès complet au disque. Sans lui, repli sur une signature « ad hoc », qui change
+# à chaque compilation (l'accès est alors perdu à chaque fois).
+SIGN_ID="${GOSAVER_SIGN_ID:-GoSaver Dev}"
+if security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\""; then
+  codesign --force --deep --sign "$SIGN_ID" "$APP"
+  echo "Signé avec « $SIGN_ID »"
+else
+  codesign --force --deep --sign - "$APP"
+  echo "Signé ad hoc (certificat « $SIGN_ID » introuvable)"
+fi
 echo "→ $APP"

@@ -11,16 +11,16 @@
 | Carte 3D | Géographie proportionnelle, limite du disque, impression gravée, plan-relief RealityKit, brouillard, caméra en orbite bornée |
 | Interaction | Visée à la souris, jalon, vol de caméra, fiche de lieu, sélection partagée avec le Registre |
 | Accès complet au disque | Détection par dossiers témoins, feuille en trois étapes, revérification au retour dans l'appli, relance |
+| Signature stable | Certificat local « GoSaver Dev » : même identité d'une compilation à l'autre, l'accès complet au disque est conservé |
 | Assèchement | Caches, journaux et corbeille (sur demande) ; liste blanche, revérification des chemins, applis ouvertes épargnées ; érosion animée |
 
 ## À venir (dans l'ordre)
 
-1. **Signature stable** : certificat de développement local, pour que macOS garde l'accès complet au disque d'une compilation à l'autre.
-2. **Déplaçabilité** (voir ci-dessous), puis **Outre-mer** : migration vers le Lexar, convois animés, rapatriement.
-3. **Lazaret** : enquête sur les fichiers mystères, quarantaine de 30 jours, suppression automatique.
-4. **IA locale** (Foundation Models) : propositions de rangement et explications, toujours validées par l'utilisateur.
-5. **Sons** (synthèse modale) et passes `/design-critique`, `/accessibility-review`, `/ux-copy`.
-6. Après l'appli : aide au rangement du Lexar.
+1. **Déplaçabilité** (voir ci-dessous), puis **Outre-mer** : migration vers le Lexar, convois animés, rapatriement.
+2. **Lazaret** : enquête sur les fichiers mystères, quarantaine de 30 jours, suppression automatique.
+3. **IA locale** (Foundation Models) : propositions de rangement et explications, toujours validées par l'utilisateur.
+4. **Sons** (synthèse modale) et passes `/design-critique`, `/accessibility-review`, `/ux-copy`.
+5. Après l'appli : aide au rangement du Lexar.
 
 ---
 
@@ -45,3 +45,15 @@
 - **iCloud.** Un fichier « dans le nuage » (non téléchargé) n'est pas déplacé.
 - **Conteneurs sandboxés** (`~/Library/Containers`). Interdits : macOS les protège et les recrée.
 - **SSD débranché.** Un dossier « avec lien » devient inaccessible, l'appli concernée est prévenue à la reconnexion. Le rapatriement est toujours proposé.
+
+---
+
+## Signature de développement
+
+`scripts/bundle.sh` signe avec le certificat « GoSaver Dev » s'il est dans le trousseau, sinon en ad hoc.
+
+- Vérifier : `security find-identity -p codesigning` (la mention `CSSMERR_TP_NOT_TRUSTED` est normale : certificat local, non validé par une autorité).
+- Identité reconnue par macOS : `codesign -d -r- build/GoSaver.app` → `identifier "fr.carlos.gosaver" and certificate root = H"cbc74d8f…"`.
+- Supprimer le certificat : `security delete-identity -c "GoSaver Dev"`.
+- Le certificat ne sert qu'à ce Mac : il ne permet pas de distribuer l'appli à d'autres (il faudrait un compte développeur Apple et la notarisation).
+
