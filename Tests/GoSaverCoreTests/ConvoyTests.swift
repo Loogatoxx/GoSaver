@@ -165,3 +165,126 @@ struct ConvoyTests {
         return process.terminationStatus
     }
 }
+
+@Suite("Convoi — rangement", .serialized)
+struct ConvoyPlacementTests {
+    typealias Bench = ConvoyTests.Bench
+
+    @Test("Envoi dans un dossier choisi : il y arrive comme sous-dossier")
+    func sendIntoFolder() throws {
+        let bench = try Bench()
+        try bench.file("Downloads/JPEG/a.jpg")
+        let shelf = bench.harborDisk.appendingPathComponent("Archives/Images")
+        try FileManager.default.createDirectory(at: shelf, withIntermediateDirectories: true)
+
+        let record = try bench.convoy.send(bench.home.appendingPathComponent("Downloads/JPEG"), into: shelf)
+
+        #expect(record.destination == shelf.appendingPathComponent("JPEG").path)
+        #expect(FileManager.default.fileExists(atPath: shelf.appendingPathComponent("JPEG/a.jpg").path))
+    }
+
+    @Test("Fusion dans un dossier du même nom : rien n'est écrasé, et le rapatriement ne reprend que l'envoi")
+    func mergeAndBringBack() throws {
+        let bench = try Bench()
+        try bench.file("Documents/IPT/cours.pdf", fill: 1)
+        try bench.file("Documents/IPT/notes.txt", fill: 2)
+        let existing = bench.harborDisk.appendingPathComponent("IPT")
+        try FileManager.default.createDirectory(at: existing, withIntermediateDirectories: true)
+        try Data(repeating: 9, count: 100).write(to: existing.appendingPathComponent("cours.pdf"))   // conflit
+        try Data(repeating: 8, count: 100).write(to: existing.appendingPathComponent("ancien.txt"))
+
+        let record = try bench.convoy.send(bench.home.appendingPathComponent("Documents/IPT"), into: existing, merge: true)
+
+        let names = Set(try FileManager.default.contentsOfDirectory(atPath: existing.path))
+        #expect(names == ["cours.pdf", "cours (depuis le Mac).pdf", "notes.txt", "ancien.txt"])
+        #expect(try Data(contentsOf: existing.appendingPathComponent("cours.pdf")).first == 9, "l'ancien fichier n'est pas écrasé")
+        #expect(record.mergedItems?["cours.pdf"] == "cours (depuis le Mac).pdf")
+
+        try bench.convoy.bringBack(record)
+
+        #expect(Set(try FileManager.default.contentsOfDirectory(atPath: existing.path)) == ["cours.pdf", "ancien.txt"])
+        let back = bench.home.appendingPathComponent("Documents/IPT")
+        #expect(try Data(contentsOf: back.appendingPathComponent("cours.pdf")).first == 1)
+        #expect(FileManager.default.fileExists(atPath: back.appendingPathComponent("notes.txt").path))
+    }
+
+    @Test("Reclassement : un renommage sur le disque, le registre et le lien suivent")
+    func relocate() throws {
+        let bench = try Bench()
+        try bench.file("Library/Application Support/MobileSync/Backup/abc/Manifest.db")
+        let source = bench.home.appendingPathComponent("Library/Application Support/MobileSync/Backup")
+        let record = try bench.convoy.send(source)
+        let shelf = bench.harborDisk.appendingPathComponent("Sauvegardes")
+        try FileManager.default.createDirectory(at: shelf, withIntermediateDirectories: true)
+
+        let moved = try bench.convoy.relocate(record, to: shelf)
+
+        #expect(moved.destination == shelf.appendingPathComponent("Backup").path)
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: source.path) == moved.destination)
+        #expect(bench.convoy.records() == [moved])
+        #expect(!FileManager.default.fileExists(atPath: record.destination))
+    }
+}
+
+@Suite("Placement")
+struct PlacementTests {
+    final class Disk {
+        let root: URL
+        init() throws {
+            root = FileManager.default.temporaryDirectory.appendingPathComponent("gosaver-place-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
+        }
+        deinit { try? FileManager.default.removeItem(at: root) }
+        func files(_ dir: String, _ names: [String]) throws {
+            let url = root.appendingPathComponent(dir)
+            try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+            for name in names { try Data([1]).write(to: url.appendingPathComponent(name)) }
+        }
+        func url(_ path: String) -> URL { root.appendingPathComponent(path) }
+    }
+
+    @Test("Des photos vont vers le dossier de photos, pas vers la musique")
+    func photosGoToPhotos() throws {
+        let disk = try Disk()
+        try disk.files("Lexar/Pictures", (1...30).map { "p\($0).jpg" })
+        try disk.files("Lexar/Musique", (1...30).map { "m\($0).mp3" })
+        try disk.files("Mac/Downloads/JPEG", (1...10).map { "DSC\($0).jpg" })
+
+        let best = Placement.index(disk.url("Lexar")).suggestions(for: disk.url("Mac/Downloads/JPEG")).first
+        #expect(best?.folder.relativePath == "Pictures")
+        #expect(best?.merges == false)
+    }
+
+    @Test("Un dossier du même nom à la racine est proposé en premier, en fusion")
+    func sameNameMerges() throws {
+        let disk = try Disk()
+        try disk.files("Lexar/IPT/GSI", ["tp.pdf"])
+        try disk.files("Lexar/Perso", ["a.pdf"])
+        try disk.files("Mac/Documents/IPT", ["cours.pdf", "td.pdf"])
+
+        let best = Placement.index(disk.url("Lexar")).suggestions(for: disk.url("Mac/Documents/IPT")).first
+        #expect(best?.folder.relativePath == "IPT")
+        #expect(best?.merges == true)
+    }
+
+    @Test("Un projet de code et ses sous-dossiers techniques ne sont jamais proposés")
+    func projectsAreNotShelves() throws {
+        let disk = try Disk()
+        try disk.files("Lexar/Perso/Projet/appli", ["pubspec.yaml", "main.dart"])
+        try disk.files("Lexar/Perso/Projet/appli/lib", ["a.dart", "b.dart"])
+        try disk.files("Mac/Projets/site", ["index.js", "app.js"])
+
+        let paths = Placement.index(disk.url("Lexar")).suggestions(for: disk.url("Mac/Projets/site")).map(\.folder.relativePath)
+        #expect(!paths.contains("Perso/Projet/appli"))
+        #expect(!paths.contains("Perso/Projet/appli/lib"))
+    }
+
+    @Test("Le dossier d'accueil de GoSaver n'est jamais proposé")
+    func harborExcluded() throws {
+        let disk = try Disk()
+        try disk.files("Lexar/GoSaver Outre-mer/Downloads", ["x.jpg"])
+        try disk.files("Mac/JPEG", ["y.jpg"])
+        let paths = Placement.index(disk.url("Lexar")).suggestions(for: disk.url("Mac/JPEG")).map(\.folder.relativePath)
+        #expect(paths.allSatisfy { !$0.hasPrefix("GoSaver Outre-mer") })
+    }
+}

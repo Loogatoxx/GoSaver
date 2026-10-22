@@ -91,20 +91,46 @@ struct Ledger: View {
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 ForEach(model.convoys) { record in
-                    HStack(spacing: Space.s2) {
-                        Text(URL(fileURLWithPath: record.original).lastPathComponent)
-                            .font(Typo.body).foregroundStyle(Ink.ink).lineLimit(1)
-                        if record.linked { Text("lien").font(Typo.label).foregroundStyle(Ink.sea) }
-                        Spacer(minLength: Space.s2)
-                        Text(Bytes.format(record.bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
-                        Button("Rapatrier") { model.prepareReturn(record) }
-                            .buttonStyle(NoteButtonStyle())
-                    }
-                    .padding(.vertical, 3)
+                    convoyRow(record, on: harbor)
                 }
             }
             .padding(.top, Space.s4)
         }
+    }
+
+    /// Un envoi : son nom, où il se trouve sur le disque, et ce qu'on peut en faire.
+    /// Encore dans le dossier d'accueil → « à ranger » ; déjà rangé → son rayonnage.
+    private func convoyRow(_ record: Convoy.Record, on harbor: TargetVolume) -> some View {
+        let shelf = AtlasModel.shelfName(record, on: harbor)
+        let waiting = shelf == "GoSaver Outre-mer" || shelf.hasPrefix("GoSaver Outre-mer/")
+        return VStack(alignment: .leading, spacing: 2) {
+            HStack(spacing: Space.s2) {
+                Text(URL(fileURLWithPath: record.original).lastPathComponent)
+                    .font(Typo.body).foregroundStyle(Ink.ink).lineLimit(1)
+                if record.linked { Text("lien").font(Typo.label).foregroundStyle(Ink.sea) }
+                Spacer(minLength: Space.s2)
+                Text(Bytes.format(record.bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+            }
+            HStack(spacing: Space.s2) {
+                if waiting {
+                    Text("à ranger").font(Typo.label).foregroundStyle(Ink.ochre)
+                } else {
+                    Text("dans \(shelf)\(record.mergedItems != nil ? " (fusionné)" : "")")
+                        .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                        .lineLimit(1).truncationMode(.middle)
+                }
+                Spacer(minLength: Space.s2)
+                if record.mergedItems == nil {
+                    Button(waiting ? "Ranger" : "Déplacer") { model.prepareRelocate(record) }
+                        .buttonStyle(NoteButtonStyle())
+                }
+                Button("Rapatrier") { model.prepareReturn(record) }
+                    .buttonStyle(NoteButtonStyle())
+            }
+        }
+        .padding(.vertical, Space.s1)
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(URL(fileURLWithPath: record.original).lastPathComponent), \(waiting ? "à ranger" : "dans \(shelf)")")
     }
 
     /// Visible dès l'ouverture tant que l'accès complet au disque manque.

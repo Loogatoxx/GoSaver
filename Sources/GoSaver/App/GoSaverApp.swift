@@ -15,6 +15,8 @@ struct GoSaverApp: App {
         WindowGroup("GoSaver") {
             RootView(model: model)
                 .frame(minWidth: 1000, minHeight: 680)
+                // Au démarrage : registre de bord du disque externe et index de ses dossiers.
+                .onAppear { model.refreshHarbor() }
                 // Au retour des Réglages, on revérifie la permission.
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     model.refreshDiskAccess()

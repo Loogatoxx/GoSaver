@@ -142,40 +142,139 @@ final class AtlasModel {
         case confirmSend(id: String, url: URL, verdict: Mobility, reason: String, bytes: Int64)
         /// Confirmation de rapatriement.
         case confirmReturn(Convoy.Record)
+        /// Choix d'un meilleur rayonnage pour un convoi déjà arrivé.
+        case confirmRelocate(Convoy.Record)
         case running(stage: Convoy.Stage, done: Int64, total: Int64, returning: Bool)
-        case arrived(name: String, bytes: Int64, linked: Bool)
+        case arrived(name: String, bytes: Int64, linked: Bool, place: String)
+        case relocated(name: String, place: String)
         case returned(name: String)
         case failed(String)
     }
 
     private(set) var convoyPhase: ConvoyPhase = .closed
     /// Disque externe visé (le premier branché), relu à la demande.
-    private(set) var harborVolume: TargetVolume? = TargetVolume.externalVolumes().first
+    private(set) var harborVolume: TargetVolume? = AtlasModel.currentHarbor()
     /// Ce qui est déjà outre-mer, d'après le registre de bord du disque.
     private(set) var convoys: [Convoy.Record] = []
 
+    /// Index des dossiers du disque externe (construit en arrière-plan quand il est branché).
+    private(set) var placement: Placement?
+    private var indexedVolume: URL?
+
+    /// Destination choisie dans la feuille d'envoi.
+    enum Destination: Equatable {
+        case harbor
+        case suggestion(PlacementSuggestion)
+        case custom(URL)
+    }
+    /// Propositions pour le convoi en préparation (vide tant qu'elles se calculent).
+    private(set) var suggestions: [PlacementSuggestion] = []
+    private(set) var suggestionsReady = false
+    var destination: Destination = .harbor
+
+    /// Disque externe visé. `GOSAVER_HARBOR=/Volumes/Test` (développement) force un autre disque,
+    /// pour essayer les convois sans toucher au vrai disque externe.
+    static func currentHarbor() -> TargetVolume? {
+        if let forced = ProcessInfo.processInfo.environment["GOSAVER_HARBOR"] {
+            return TargetVolume.detect(URL(fileURLWithPath: forced))
+        }
+        return TargetVolume.externalVolumes().first
+    }
+
     func refreshHarbor() {
-        harborVolume = TargetVolume.externalVolumes().first
+        harborVolume = Self.currentHarbor()
         convoys = harborVolume.map { Convoy(target: $0).records() } ?? []
+        guard let volume = harborVolume?.url else { placement = nil; indexedVolume = nil; return }
+        guard volume != indexedVolume else { return }
+        indexedVolume = volume
+        Task {
+            // ~7 s sur un disque de 3 000 dossiers : hors du fil principal.
+            placement = await Task.detached(priority: .utility) { Placement.index(volume) }.value
+        }
     }
 
     func prepareSend(_ landmark: Landmark, verdict: MobilityVerdict) {
         guard let url = landmark.places.first?.url else { return }
         convoyPhase = .confirmSend(id: landmark.id, url: url, verdict: verdict.mobility,
                                    reason: verdict.reason, bytes: verdict.bytesOnTarget ?? landmark.bytes)
+        // Un envoi « avec lien » garde un dossier à lui : on ne propose pas de fusion.
+        suggest(for: url, allowMerge: verdict.mobility == .free)
     }
 
     func prepareReturn(_ record: Convoy.Record) { convoyPhase = .confirmReturn(record) }
+
+    func prepareRelocate(_ record: Convoy.Record) {
+        convoyPhase = .confirmRelocate(record)
+        suggest(for: URL(fileURLWithPath: record.destination), allowMerge: !record.linked)
+    }
+
+    /// Calcule les meilleurs rayonnages (lecture seule) et présélectionne le premier.
+    private func suggest(for url: URL, allowMerge: Bool) {
+        suggestions = []
+        suggestionsReady = false
+        destination = .harbor
+        Task {
+            // L'index peut être encore en cours de construction : on l'attend un peu.
+            for _ in 0..<40 where placement == nil { try? await Task.sleep(for: .milliseconds(250)) }
+            guard let placement else { suggestionsReady = true; return }
+            let found = await Task.detached(priority: .userInitiated) {
+                placement.suggestions(for: url).filter { allowMerge || !$0.merges }
+                    .filter { !url.path.hasPrefix($0.folder.url.path + "/") || $0.merges }
+            }.value
+            suggestions = found
+            suggestionsReady = true
+            if let first = found.first { destination = .suggestion(first) }
+        }
+    }
+
+    /// Dossier et mode d'arrivée correspondant au choix de la feuille.
+    private var chosenFolder: (folder: URL?, merge: Bool) {
+        switch destination {
+        case .harbor: (nil, false)
+        case .suggestion(let s): (s.folder.url, s.merges)
+        case .custom(let url): (url, false)
+        }
+    }
+
+    func confirmRelocate() {
+        Log.convoy.notice("Ranger cliqué ; phase : \(String(describing: self.convoyPhase), privacy: .public) ; destination : \(String(describing: self.destination), privacy: .public)")
+        guard case .confirmRelocate(let record) = convoyPhase, let target = harborVolume,
+              let folder = chosenFolder.folder else { return }
+        let merge = chosenFolder.merge
+        Task {
+            let outcome: Result<Convoy.Record, Error> = await Task.detached(priority: .userInitiated) {
+                Result { try Convoy(target: target).relocate(record, to: folder, merge: merge) }
+            }.value
+            Log.convoy.notice("reclassement : \(String(describing: outcome), privacy: .public) ; phase avant : \(String(describing: self.convoyPhase), privacy: .public)")
+            switch outcome {
+            case .success(let moved):
+                refreshHarbor()
+                convoyPhase = .relocated(name: URL(fileURLWithPath: record.original).lastPathComponent,
+                                         place: Self.shelfName(moved, on: target))
+            case .failure(let error):
+                convoyPhase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// « Archives/Downloads-images-2026-09 » : où l'envoi se trouve, depuis la racine du disque.
+    static func shelfName(_ record: Convoy.Record, on target: TargetVolume) -> String {
+        let base = target.url.path + "/"
+        let path = record.mergedItems == nil ? URL(fileURLWithPath: record.destination).deletingLastPathComponent().path : record.destination
+        let relative = path.hasPrefix(base) ? String(path.dropFirst(base.count)) : path
+        return relative.isEmpty ? target.name : relative
+    }
     func closeConvoy() { convoyPhase = .closed }
 
     /// Lance l'envoi confirmé. Le moteur rejuge et vérifie tout lui-même.
     func confirmSend() {
         guard case .confirmSend(_, let url, _, _, let bytes) = convoyPhase, let target = harborVolume else { return }
+        let (folder, merge) = chosenFolder
         convoyPhase = .running(stage: .judging, done: 0, total: bytes, returning: false)
         Task {
             let outcome: Result<Convoy.Record, Error> = await Task.detached(priority: .userInitiated) {
                 Result {
-                    try Convoy(target: target).send(url) { p in
+                    try Convoy(target: target).send(url, into: folder, merge: merge) { p in
                         Task { @MainActor in
                             if case .running = self.convoyPhase {
                                 self.convoyPhase = .running(stage: p.stage, done: p.bytesDone, total: max(p.bytesTotal, bytes), returning: false)
@@ -192,7 +291,8 @@ final class AtlasModel {
                 selectedID = nil
                 landRevision += 1
                 refreshHarbor()
-                convoyPhase = .arrived(name: url.lastPathComponent, bytes: record.bytes, linked: record.linked)
+                convoyPhase = .arrived(name: url.lastPathComponent, bytes: record.bytes, linked: record.linked,
+                                       place: Self.shelfName(record, on: target))
             case .failure(let error):
                 convoyPhase = .failed(error.localizedDescription)
             }

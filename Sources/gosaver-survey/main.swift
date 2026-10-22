@@ -36,6 +36,28 @@ if let flag = CommandLine.arguments.firstIndex(of: "--deplacabilite") {
     exit(0)
 }
 
+// `--placement chemin…` : meilleures destinations sur le disque externe (lecture seule).
+if let flag = CommandLine.arguments.firstIndex(of: "--placement") {
+    guard let target = TargetVolume.externalVolumes().first else { print("Aucun disque externe."); exit(1) }
+    let clock = ContinuousClock()
+    let start = clock.now
+    let placement = Placement.index(target.url)
+    print("Index de \(target.name) : \(placement.folders.count) dossiers en \(clock.now - start)\n")
+    for path in CommandLine.arguments[(flag + 1)...] {
+        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        let profile = KindProfile.of(url)
+        print("\(url.lastPathComponent)  [dominante : \(profile.dominant?.label ?? "aucune")]")
+        let suggestions = placement.suggestions(for: url, sourceProfile: profile)
+        if suggestions.isEmpty { print("  (aucune proposition : dossier d'accueil)") }
+        for s in suggestions {
+            print("  \(String(format: "%.2f", s.score))  \(s.folder.relativePath)")
+            for r in s.reasons { print("        · \(r)") }
+        }
+        print("")
+    }
+    exit(0)
+}
+
 let surveyor = Surveyor()
 var planned = 0
 var done = 0

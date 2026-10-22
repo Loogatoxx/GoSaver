@@ -14,6 +14,7 @@
 | Signature stable | Certificat local « GoSaver Dev » : même identité d'une compilation à l'autre, l'accès complet au disque est conservé |
 | Déplaçabilité | `MobilityJudge` : verdict Libre / Avec lien / Déconseillé / Interdit + raison + conseil, d'après l'emplacement, le contenu (liens, programmes, git, iCloud, fichiers creux) et le disque cible (format, place) ; affiché dans la fiche de lieu |
 | Outre-mer | Convoi « copier, vérifier, remplacer » (empreintes début/fin), lien symbolique si nécessaire, registre de bord sur le disque, rapatriement ; feuille d'envoi, section Outre-mer du Registre |
+| Rangement outre-mer | Index des dossiers du disque, 3 propositions expliquées (contenu, nom, profondeur), fusion dans un dossier du même nom sans rien écraser, choix manuel, reclassement des envois |
 | Icône | Île gravée, courbes de niveau, jalon vermillon, cadre de carte (`scripts/make-icon.sh`) |
 | Assèchement | Caches, journaux et corbeille (sur demande) ; liste blanche, revérification des chemins, applis ouvertes épargnées ; érosion animée |
 
@@ -21,9 +22,9 @@
 
 1. **Convoi animé sur la carte** (route pointillée, petit navire) et **dossiers `build/`** reconnus comme Carrières.
    - Idée relevée sur ce Mac : les dossiers `build/` des projets Flutter et Android (≈ 1,2 Go de `libflutter.so` dans IPT) se recréent à la compilation → à reconnaître comme Carrières (à côté d'un `pubspec.yaml` ou `build.gradle`).
-2. **Lazaret** : enquête sur les fichiers mystères, quarantaine de 30 jours, suppression automatique.
-3. **IA locale** (Foundation Models) : propositions de rangement et explications, toujours validées par l'utilisateur.
-4. **Sons** (synthèse modale) et passes `/design-critique`, `/accessibility-review`, `/ux-copy`.
+2. **Lazaret** : « corbeille » sur le Lexar pour tout ce qu'on ne veut plus (action depuis la fiche d'un lieu) et pour les fichiers mystères après enquête ; suppression automatique au bout de 30 jours, récupérable d'un clic d'ici là.
+3. **IA locale** (Foundation Models) : explications en langage naturel, et affine le classement des propositions (ex. distinguer des ressources de projet d'une vraie photothèque).
+5. **Sons** (synthèse modale) et passes `/design-critique`, `/accessibility-review`, `/ux-copy`.
 5. Après l'appli : aide au rangement du Lexar.
 
 ---

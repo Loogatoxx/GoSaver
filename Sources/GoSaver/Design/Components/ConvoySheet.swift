@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import GoSaverCore
 
 /// Feuille du convoi : confirmation, suivi en direct, arrivée — et le rapatriement.
@@ -7,37 +8,53 @@ struct ConvoySheet: View {
     let model: AtlasModel
 
     var body: some View {
-        PaperModal(width: 500, onDismiss: dismissible ? { model.closeConvoy() } : nil) {
-            switch model.convoyPhase {
-            case .confirmSend(_, let url, let verdict, let reason, let bytes):
-                confirmSend(url: url, verdict: verdict, reason: reason, bytes: bytes)
-            case .confirmReturn(let record):
-                confirmReturn(record)
-            case .running(let stage, let done, let total, let returning):
-                running(stage: stage, done: done, total: total, returning: returning)
-            case .arrived(let name, let bytes, let linked):
-                title("\(name) est arrivé sur \(harborName)")
-                Text(Bytes.format(bytes)).font(Typo.display).foregroundStyle(Ink.sea)
-                Text(linked
-                     ? "rendus au disque interne. Un lien reste à sa place : l’appli le retrouvera tant que \(harborName) est branché."
-                     : "rendus au disque interne. La copie a été vérifiée avant que l’original soit supprimé.")
-                    .font(Typo.water).foregroundStyle(Ink.inkFaded)
-                    .fixedSize(horizontal: false, vertical: true)
-                closeButton
-            case .returned(let name):
-                title("\(name) est revenu à sa place")
-                Text("La copie a été vérifiée, puis retirée de \(harborName).")
-                    .font(Typo.water).foregroundStyle(Ink.inkFaded)
-                closeButton
-            case .failed(let message):
-                title("Le convoi s’est arrêté")
-                Text(message).font(Typo.body).foregroundStyle(Ink.ochre)
-                    .fixedSize(horizontal: false, vertical: true)
-                closeButton
-            case .closed:
-                EmptyView()
-            }
+        PaperModal(width: 520, onDismiss: dismissible ? { model.closeConvoy() } : nil) {
+            content
         }
+    }
+
+    @ViewBuilder
+    private var content: some View {
+        switch model.convoyPhase {
+        case .confirmSend(_, let url, let verdict, let reason, let bytes):
+            confirmSend(url: url, verdict: verdict, reason: reason, bytes: bytes)
+        case .confirmReturn(let record):
+            confirmReturn(record)
+        case .confirmRelocate(let record):
+            confirmRelocate(record)
+        case .running(let stage, let done, let total, let returning):
+            running(stage: stage, done: done, total: total, returning: returning)
+        case .arrived(let name, let bytes, let linked, let place):
+            arrived(name: name, bytes: bytes, linked: linked, place: place)
+        case .relocated(let name, let place):
+            title("\(name) est rangé")
+            Text("Désormais dans « \(place) » sur \(harborName).").font(Typo.water).foregroundStyle(Ink.inkFaded)
+            closeButton
+        case .returned(let name):
+            title("\(name) est revenu à sa place")
+            Text("La copie a été vérifiée, puis retirée de \(harborName).")
+                .font(Typo.water).foregroundStyle(Ink.inkFaded)
+            closeButton
+        case .failed(let message):
+            title("Le convoi s’est arrêté")
+            Text(message).font(Typo.body).foregroundStyle(Ink.ochre)
+                .fixedSize(horizontal: false, vertical: true)
+            closeButton
+        case .closed:
+            EmptyView()
+        }
+    }
+
+    @ViewBuilder
+    private func arrived(name: String, bytes: Int64, linked: Bool, place: String) -> some View {
+        title("\(name) est arrivé sur \(harborName)")
+        Text(Bytes.format(bytes)).font(Typo.display).foregroundStyle(Ink.sea)
+        Text("rendus au disque interne. Rangé dans « \(place) »."
+             + (linked ? " Un lien reste à sa place : l’appli le retrouvera tant que \(harborName) est branché."
+                       : " La copie a été vérifiée avant que l’original soit supprimé."))
+            .font(Typo.water).foregroundStyle(Ink.inkFaded)
+            .fixedSize(horizontal: false, vertical: true)
+        closeButton
     }
 
     private var harborName: String { model.harborVolume?.name ?? "le disque externe" }
@@ -57,16 +74,14 @@ struct ConvoySheet: View {
             Text(url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                 .font(Typo.figure).foregroundStyle(Ink.inkFaded).lineLimit(1).truncationMode(.middle)
         }
-        if let harbor = model.harborVolume {
-            Text("Vers \(harbor.name) (\(harbor.format.label), \(Bytes.format(harbor.freeBytes)) libres), dans « GoSaver Outre-mer ».")
-                .font(Typo.label).foregroundStyle(Ink.inkFaded)
-        }
         HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
             Text(verdict.label.uppercased()).font(Typo.region).tracking(Typo.regionTracking)
                 .foregroundStyle(PlaceSheet.color(verdict))
             Text(reason).font(Typo.body).foregroundStyle(Ink.ink).fixedSize(horizontal: false, vertical: true)
         }
 
+        GraduatedRule()
+        DestinationPicker(model: model)
         GraduatedRule()
 
         VStack(alignment: .leading, spacing: Space.s2) {
@@ -100,6 +115,24 @@ struct ConvoySheet: View {
             Spacer()
             Button("Rapatrier") { model.confirmReturn() }
                 .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
+        }
+    }
+
+    @ViewBuilder
+    private func confirmRelocate(_ record: Convoy.Record) -> some View {
+        title("Ranger au bon endroit")
+        Text(URL(fileURLWithPath: record.original).lastPathComponent).font(Typo.heading).foregroundStyle(Ink.ink)
+        Text("Il est sur \(harborName), dans « \(model.harborVolume.map { AtlasModel.shelfName(record, on: $0) } ?? "") ». Le reclasser est un simple renommage : instantané.")
+            .font(Typo.water).foregroundStyle(Ink.inkFaded)
+            .fixedSize(horizontal: false, vertical: true)
+        DestinationPicker(model: model, includeHarbor: false)
+        HStack(spacing: Space.s3) {
+            Button("Annuler") { model.closeConvoy() }
+                .buttonStyle(TraceButtonStyle()).keyboardShortcut(.cancelAction)
+            Spacer()
+            Button("Ranger") { model.confirmRelocate() }
+                .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
+                .disabled(model.destination == .harbor)
         }
     }
 
@@ -143,5 +176,77 @@ struct ConvoySheet: View {
             Button("Fermer") { model.closeConvoy() }
                 .buttonStyle(TraceButtonStyle()).keyboardShortcut(.defaultAction)
         }
+    }
+}
+
+/// Choix du rayonnage : propositions classées (avec leurs raisons), dossier d'accueil, ou autre dossier.
+struct DestinationPicker: View {
+    @Bindable var model: AtlasModel
+    var includeHarbor = true
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s2) {
+            Text("Destination").regionStyle().foregroundStyle(Ink.inkFaded)
+            if !model.suggestionsReady {
+                Text("Recherche du meilleur rayonnage…").font(Typo.water).foregroundStyle(Ink.inkFaded)
+            } else if model.suggestions.isEmpty {
+                Text("Aucun dossier du disque ne ressemble à celui-ci.").font(Typo.water).foregroundStyle(Ink.inkFaded)
+            }
+            ForEach(model.suggestions) { suggestion in
+                option(selected: model.destination == .suggestion(suggestion),
+                       title: suggestion.folder.relativePath,
+                       detail: (suggestion.merges ? "Fusion. " : "") + (suggestion.reasons.first ?? "")) {
+                    model.destination = .suggestion(suggestion)
+                }
+            }
+            if includeHarbor {
+                option(selected: model.destination == .harbor, title: "GoSaver Outre-mer",
+                       detail: "Dossier d’accueil, à ranger plus tard.") { model.destination = .harbor }
+            }
+            if case .custom(let url) = model.destination {
+                option(selected: true, title: url.lastPathComponent, detail: "Dossier choisi à la main.") {}
+            }
+            Button("Choisir un autre dossier…", action: pickFolder)
+                .buttonStyle(NoteButtonStyle())
+        }
+    }
+
+    private func option(selected: Bool, title: String, detail: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
+                // Repère de légende : carré d'encre, plein quand il est choisi.
+                ZStack {
+                    Rectangle().strokeBorder(Ink.ink, lineWidth: Stroke.rule)
+                    if selected { Rectangle().fill(Ink.vermilion).padding(3) }
+                }
+                .frame(width: 13, height: 13)
+                .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(title).font(selected ? Typo.bodyStrong : Typo.body).foregroundStyle(Ink.ink)
+                        .lineLimit(1).truncationMode(.middle)
+                    Text(detail).font(Typo.label).foregroundStyle(Ink.inkFaded)
+                        .lineLimit(2).fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// Fenêtre d'ouverture macOS, limitée à un dossier du disque externe.
+    private func pickFolder() {
+        guard let volume = model.harborVolume else { return }
+        let panel = NSOpenPanel()
+        panel.canChooseDirectories = true
+        panel.canChooseFiles = false
+        panel.canCreateDirectories = true
+        panel.directoryURL = volume.url
+        panel.prompt = "Ranger ici"
+        panel.message = "Choisis un dossier sur \(volume.name)."
+        guard panel.runModal() == .OK, let url = panel.url else { return }
+        // Le dossier doit être sur le disque externe, sinon ce ne serait plus un envoi outre-mer.
+        guard url.standardizedFileURL.path.hasPrefix(volume.url.standardizedFileURL.path + "/") else { return }
+        model.destination = .custom(url)
     }
 }

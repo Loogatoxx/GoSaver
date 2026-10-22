@@ -190,3 +190,31 @@
 - Accessibilité : chaque lieu du Registre redevient un bouton distinct pour VoiceOver.
 
 **Objectif :** libérer de la place en envoyant des dossiers sur le Lexar, sans jamais risquer de perdre un fichier ; et donner à l'appli son identité visuelle.
+
+## 2026-10-22 — Ranger les envois au bon endroit du Lexar
+
+**Prompt :** « Oui j'ai testé et ça a mis sur un dossier GoSaver ; le truc c'est que justement on avait parlé que l'appli puisse repérer le dossier le plus adapté au lieu de tout regrouper sur un seul dossier, à moins que c'était déjà prévu. »
+
+**Réponse :** c'était prévu (cadrage) mais pas encore fait — le dossier d'accueil unique était un intermédiaire non signalé. Ajout d'un moteur de rangement : propositions expliquées, choix, fusion, reclassement. Commit `5d7e919` poussé avant.
+
+**Modifications :**
+- `GoSaverCore/Mobility/Placement.swift` : familles de fichiers (extensions + mots de dossier), profil d'un dossier par échantillon, index du disque (3 023 dossiers en ~7 s), score = contenu semblable + nom qui annonce la famille + mots communs + profondeur + remplissage ; exclut projets de code, sous-dossiers techniques, sauvegardes d'appareil (déclassées), dossier d'accueil. Même nom près de la racine → fusion.
+- Réglages issus de l'essai sur le vrai Lexar : IPT proposé dans `IPT` (fusion) et non dans un projet Android, Music dans `Music` et non dans un album « MUSIC », singulier/pluriel (« Projets » ↔ « Projet »).
+- `Convoy` : envoi dans un dossier choisi, fusion (conflits renommés « (depuis le Mac) », rien d'écrasé, rapatriement de l'envoi seul), reclassement par renommage (le lien suit), identifiant de convoi stable.
+- Interface : sélecteur de destination (propositions avec raison, dossier d'accueil, « Choisir un autre dossier… » limité au Lexar), bouton « Ranger » sur les envois existants.
+- 7 tests (51 au total) ; `gosaver-survey --placement chemin…`.
+
+**Objectif :** que chaque envoi rejoigne le rayonnage qui lui correspond sur le Lexar, en expliquant pourquoi, et que l'utilisateur garde le dernier mot.
+
+## 2026-10-22 — « Après Ranger, ça reste toujours là »
+
+**Prompt :** « Après ranger il reste toujours sur l'interface et on peut plus appuyer sur ranger » — puis « my bad, on peut toujours cliquer dessus » et « mais ça reste toujours là ». Puis : « faire un dossier corbeille sur le Lexar pour les trucs qu'on ne veut pas, qui s'élimine tout seul. »
+
+**Réponse :** le rangement avait bien eu lieu (JPEG dans `Lexar/Perso/JPEG`, registre à jour). Reproduit sur un disque exFAT de test : la feuille fonctionne ; le vrai défaut est que la ligne de l'envoi dans le Registre ne disait pas où il se trouvait, donc rien ne semblait changer. Corrigé. La « corbeille du Lexar » correspond au Lazaret prévu au cadrage : proposée comme prochaine étape.
+
+**Modifications :**
+- Registre › Outre-mer : chaque envoi affiche « à ranger » (encore dans le dossier d'accueil) ou « dans Perso » ; bouton « Ranger » ou « Déplacer » selon le cas.
+- Registre de bord lu dès l'ouverture (il ne l'était qu'au retour au premier plan).
+- `GOSAVER_HARBOR` (développement) : faire pointer l'appli vers un disque de test ; journal `Log.convoy`.
+
+**Objectif :** que l'état de chaque envoi soit visible d'un coup d'œil, et pouvoir déboguer les convois sans toucher au vrai disque.
