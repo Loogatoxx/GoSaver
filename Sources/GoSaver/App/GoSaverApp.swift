@@ -18,6 +18,14 @@ struct GoSaverApp: App {
                 // Au retour des Réglages, on revérifie la permission.
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     model.refreshDiskAccess()
+                    model.refreshHarbor()
+                }
+                // Disque branché ou débranché : l'Outre-mer apparaît ou disparaît.
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didMountNotification)) { _ in
+                    model.refreshHarbor()
+                }
+                .onReceive(NSWorkspace.shared.notificationCenter.publisher(for: NSWorkspace.didUnmountNotification)) { _ in
+                    model.refreshHarbor()
                 }
         }
         .windowStyle(.hiddenTitleBar)
@@ -66,7 +74,8 @@ struct RootView: View {
 
                 // La fiche du lieu sélectionné, au-dessus de tout, à la place de l'en-tête.
                 if let id = model.selectedID, let landmark = model.landmark(id: id) {
-                    PlaceSheet(landmark: landmark) { model.selectedID = nil }
+                    PlaceSheet(landmark: landmark, onClose: { model.selectedID = nil },
+                               onSend: { verdict in model.prepareSend(landmark, verdict: verdict) })
                         .padding(.top, Space.s7)
                         .padding(.leading, Space.s7)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -80,7 +89,10 @@ struct RootView: View {
         }
         .background(Ink.paper)
         .overlay {
-            if model.drainPhase != .closed {
+            if model.convoyPhase != .closed {
+                ConvoySheet(model: model)
+                    .transition(.opacity)
+            } else if model.drainPhase != .closed {
                 DrainSheet(model: model)
                     .transition(.opacity)
             } else if model.accessSheetOpen {
@@ -90,6 +102,7 @@ struct RootView: View {
         }
         .animation(Motion.settle, value: model.drainPhase != .closed)
         .animation(Motion.settle, value: model.accessSheetOpen)
+        .animation(Motion.settle, value: model.convoyPhase == .closed)
     }
 
     /// Le grand chiffre : ce qui compte le plus à cet instant.

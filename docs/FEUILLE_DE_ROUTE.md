@@ -13,11 +13,13 @@
 | Accès complet au disque | Détection par dossiers témoins, feuille en trois étapes, revérification au retour dans l'appli, relance |
 | Signature stable | Certificat local « GoSaver Dev » : même identité d'une compilation à l'autre, l'accès complet au disque est conservé |
 | Déplaçabilité | `MobilityJudge` : verdict Libre / Avec lien / Déconseillé / Interdit + raison + conseil, d'après l'emplacement, le contenu (liens, programmes, git, iCloud, fichiers creux) et le disque cible (format, place) ; affiché dans la fiche de lieu |
+| Outre-mer | Convoi « copier, vérifier, remplacer » (empreintes début/fin), lien symbolique si nécessaire, registre de bord sur le disque, rapatriement ; feuille d'envoi, section Outre-mer du Registre |
+| Icône | Île gravée, courbes de niveau, jalon vermillon, cadre de carte (`scripts/make-icon.sh`) |
 | Assèchement | Caches, journaux et corbeille (sur demande) ; liste blanche, revérification des chemins, applis ouvertes épargnées ; érosion animée |
 
 ## À venir (dans l'ordre)
 
-1. **Outre-mer** : migration vers le Lexar selon le verdict (déplacement simple ou avec lien), convois animés, rapatriement.
+1. **Convoi animé sur la carte** (route pointillée, petit navire) et **dossiers `build/`** reconnus comme Carrières.
    - Idée relevée sur ce Mac : les dossiers `build/` des projets Flutter et Android (≈ 1,2 Go de `libflutter.so` dans IPT) se recréent à la compilation → à reconnaître comme Carrières (à côté d'un `pubspec.yaml` ou `build.gradle`).
 2. **Lazaret** : enquête sur les fichiers mystères, quarantaine de 30 jours, suppression automatique.
 3. **IA locale** (Foundation Models) : propositions de rangement et explications, toujours validées par l'utilisateur.

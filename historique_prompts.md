@@ -174,3 +174,19 @@
 - 15 tests (36 au total).
 
 **Objectif :** que rien ne parte sur le Lexar sans une raison vérifiable ; l'IA ne fera que reformuler ces verdicts.
+
+## 2026-10-22 — Outre-mer (migration vers le Lexar) et icône
+
+**Prompt :** « Commite, pousse, puis attaque l'Outre-mer : la migration vers le Lexar selon les verdicts. » — puis : « N'hésite pas aussi dans le lot à faire le logo pour pas que ce soit un truc sans icône. »
+
+**Réponse :** commit `bd46250` poussé ; moteur de convoi écrit et testé (dont un vrai disque exFAT de test), feuille d'envoi, section Outre-mer du Registre, rapatriement ; icône dessinée et intégrée. Aucune donnée réelle n'a été déplacée pendant les essais.
+
+**Modifications :**
+- `GoSaverCore/Mobility/Convoy.swift` : envoi « copier sous nom provisoire → vérifier (tailles + SHA-256 du premier et du dernier Mo) → renommer → mettre l'original de côté → lien si besoin → supprimer » ; annulation propre à chaque étape ; registre de bord JSON sur le disque externe ; rapatriement par le même protocole.
+- Bogues trouvés par les tests : calcul des chemins relatifs faussé par `/var` ↔ `/private/var` (désormais chemins relatifs fournis par l'énumérateur), date du registre non stable (arrondie à la seconde).
+- 8 tests de convoi, dont un sur une image disque exFAT réelle de 64 Mo créée puis détruite (44 tests au total).
+- `ConvoySheet`, bouton « Envoyer outre-mer » dans la fiche (verdicts Libre / Avec lien seulement), section Outre-mer du Registre avec « Rapatrier », suivi du branchement des disques.
+- `IconArt` + `scripts/make-icon.sh` → `Assets/AppIcon.icns`, déclarée dans l'Info.plist.
+- Accessibilité : chaque lieu du Registre redevient un bouton distinct pour VoiceOver.
+
+**Objectif :** libérer de la place en envoyant des dossiers sur le Lexar, sans jamais risquer de perdre un fichier ; et donner à l'appli son identité visuelle.

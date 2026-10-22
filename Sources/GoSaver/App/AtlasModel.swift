@@ -134,6 +134,98 @@ final class AtlasModel {
         Log.access.notice("accès complet au disque : \(String(describing: self.diskAccess), privacy: .public)")
     }
 
+    // MARK: - Outre-mer (convois vers le disque externe)
+
+    enum ConvoyPhase: Equatable {
+        case closed
+        /// Confirmation d'envoi d'un repère vers la destination.
+        case confirmSend(id: String, url: URL, verdict: Mobility, reason: String, bytes: Int64)
+        /// Confirmation de rapatriement.
+        case confirmReturn(Convoy.Record)
+        case running(stage: Convoy.Stage, done: Int64, total: Int64, returning: Bool)
+        case arrived(name: String, bytes: Int64, linked: Bool)
+        case returned(name: String)
+        case failed(String)
+    }
+
+    private(set) var convoyPhase: ConvoyPhase = .closed
+    /// Disque externe visé (le premier branché), relu à la demande.
+    private(set) var harborVolume: TargetVolume? = TargetVolume.externalVolumes().first
+    /// Ce qui est déjà outre-mer, d'après le registre de bord du disque.
+    private(set) var convoys: [Convoy.Record] = []
+
+    func refreshHarbor() {
+        harborVolume = TargetVolume.externalVolumes().first
+        convoys = harborVolume.map { Convoy(target: $0).records() } ?? []
+    }
+
+    func prepareSend(_ landmark: Landmark, verdict: MobilityVerdict) {
+        guard let url = landmark.places.first?.url else { return }
+        convoyPhase = .confirmSend(id: landmark.id, url: url, verdict: verdict.mobility,
+                                   reason: verdict.reason, bytes: verdict.bytesOnTarget ?? landmark.bytes)
+    }
+
+    func prepareReturn(_ record: Convoy.Record) { convoyPhase = .confirmReturn(record) }
+    func closeConvoy() { convoyPhase = .closed }
+
+    /// Lance l'envoi confirmé. Le moteur rejuge et vérifie tout lui-même.
+    func confirmSend() {
+        guard case .confirmSend(_, let url, _, _, let bytes) = convoyPhase, let target = harborVolume else { return }
+        convoyPhase = .running(stage: .judging, done: 0, total: bytes, returning: false)
+        Task {
+            let outcome: Result<Convoy.Record, Error> = await Task.detached(priority: .userInitiated) {
+                Result {
+                    try Convoy(target: target).send(url) { p in
+                        Task { @MainActor in
+                            if case .running = self.convoyPhase {
+                                self.convoyPhase = .running(stage: p.stage, done: p.bytesDone, total: max(p.bytesTotal, bytes), returning: false)
+                            }
+                        }
+                    }
+                }
+            }.value
+            switch outcome {
+            case .success(let record):
+                if let survey {
+                    apply(.finished(survey.removing([(url: url, bytes: record.bytes)], volume: .of())))
+                }
+                selectedID = nil
+                landRevision += 1
+                refreshHarbor()
+                convoyPhase = .arrived(name: url.lastPathComponent, bytes: record.bytes, linked: record.linked)
+            case .failure(let error):
+                convoyPhase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    /// Lance le rapatriement confirmé.
+    func confirmReturn() {
+        guard case .confirmReturn(let record) = convoyPhase, let target = harborVolume else { return }
+        convoyPhase = .running(stage: .copying, done: 0, total: record.bytes, returning: true)
+        Task {
+            let outcome: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
+                Result {
+                    try Convoy(target: target).bringBack(record) { p in
+                        Task { @MainActor in
+                            if case .running = self.convoyPhase {
+                                self.convoyPhase = .running(stage: p.stage, done: p.bytesDone, total: record.bytes, returning: true)
+                            }
+                        }
+                    }
+                }
+            }.value
+            switch outcome {
+            case .success:
+                refreshHarbor()
+                volume = .of()
+                convoyPhase = .returned(name: URL(fileURLWithPath: record.original).lastPathComponent)
+            case .failure(let error):
+                convoyPhase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
     // MARK: - Assèchement
 
     enum DrainPhase: Equatable {

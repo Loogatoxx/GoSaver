@@ -62,8 +62,49 @@ struct Ledger: View {
             ForEach(terrains, id: \.self) { terrain in
                 section(terrain)
             }
+            outremer
         }
         .padding(Space.s5)
+    }
+
+    /// L'autre continent : ce qui est déjà parti sur le disque externe, et comment le rapatrier.
+    @ViewBuilder
+    private var outremer: some View {
+        if let harbor = model.harborVolume {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Outre-mer").font(Typo.heading).foregroundStyle(Ink.ink)
+                        Text("\(harbor.name) · \(harbor.format.label) · \(Bytes.format(harbor.freeBytes)) libres")
+                            .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                    }
+                    Spacer()
+                    if !model.convoys.isEmpty {
+                        Text(Bytes.format(model.convoys.reduce(Int64(0)) { $0 + $1.bytes }))
+                            .font(Typo.figure).foregroundStyle(Ink.sea)
+                    }
+                }
+                .padding(.vertical, Space.s3)
+                if model.convoys.isEmpty {
+                    Text("Aucun convoi pour l’instant. Ouvre la fiche d’un lieu pour l’envoyer ici.")
+                        .font(Typo.water).foregroundStyle(Ink.inkFaded)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(model.convoys) { record in
+                    HStack(spacing: Space.s2) {
+                        Text(URL(fileURLWithPath: record.original).lastPathComponent)
+                            .font(Typo.body).foregroundStyle(Ink.ink).lineLimit(1)
+                        if record.linked { Text("lien").font(Typo.label).foregroundStyle(Ink.sea) }
+                        Spacer(minLength: Space.s2)
+                        Text(Bytes.format(record.bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+                        Button("Rapatrier") { model.prepareReturn(record) }
+                            .buttonStyle(NoteButtonStyle())
+                    }
+                    .padding(.vertical, 3)
+                }
+            }
+            .padding(.top, Space.s4)
+        }
     }
 
     /// Visible dès l'ouverture tant que l'accès complet au disque manque.
@@ -127,7 +168,9 @@ struct Ledger: View {
             Rectangle().fill(Ink.contour).frame(height: Stroke.hairline)
                 .padding(.top, Space.s2)
         }
-        .accessibilityElement(children: .combine)
+        // « contain » et non « combine » : chaque lieu reste un bouton distinct pour VoiceOver.
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel("\(terrain.name), \(terrain.meaning), \(Bytes.format(model.bytes(of: terrain)))")
     }
 
     private func row(_ name: String, _ figure: String?, faded: Bool = false,

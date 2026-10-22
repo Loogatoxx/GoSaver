@@ -7,6 +7,8 @@ import GoSaverCore
 struct PlaceSheet: View {
     let landmark: AtlasModel.Landmark
     let onClose: () -> Void
+    /// Demande d'envoi outre-mer (ouvre la feuille de convoi).
+    var onSend: ((MobilityVerdict) -> Void)?
     /// Verdict de déplaçabilité vers le disque externe, calculé à l'ouverture (lecture seule).
     @State private var mobility: (verdict: MobilityVerdict, target: TargetVolume?)?
 
@@ -105,11 +107,16 @@ struct PlaceSheet: View {
                 Text(mobility.target.map { "Vers \($0.name) (\($0.format.label), \(Bytes.format($0.freeBytes)) libres)" }
                      ?? "Aucun disque externe branché.")
                     .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                if mobility.target != nil, mobility.verdict.mobility <= .withLink, landmark.places.count == 1, let onSend {
+                    Button("Envoyer outre-mer") { onSend(mobility.verdict) }
+                        .buttonStyle(TraceButtonStyle())
+                        .padding(.top, Space.s1)
+                }
             } else {
                 Text("Examen du contenu…").font(Typo.water).foregroundStyle(Ink.inkFaded)
             }
         }
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: .contain)
     }
 
     static func color(_ mobility: Mobility) -> Color {

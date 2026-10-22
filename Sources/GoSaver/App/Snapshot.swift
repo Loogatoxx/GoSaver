@@ -16,6 +16,14 @@ enum Snapshot {
         let folder = URL(fileURLWithPath: args[flag + 1])
         Typo.registerBundledFonts()
 
+        // `--icone` : l'icône seule, en 1024 × 1024.
+        if args.contains("--icone") {
+            let renderer = ImageRenderer(content: IconArt().frame(width: 1024, height: 1024))
+            renderer.scale = 1
+            if let image = renderer.cgImage { writePNG(image, to: folder.appendingPathComponent("icone-1024.png")) }
+            exit(0)
+        }
+
         let model = AtlasModel()
         if args.contains("--survey") {
             model.load(blockingSurvey())
