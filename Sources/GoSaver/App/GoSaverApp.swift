@@ -30,7 +30,8 @@ struct RootView: View {
         HStack(spacing: 0) {
             ZStack(alignment: .bottomLeading) {
                 Ink.paper
-                AtlasMapView(model: model)
+                // ImageRenderer (mode instantané) ne sait pas dessiner une vue RealityKit.
+                if !Snapshot.isActive { AtlasMapView(model: model) }
                 VStack(alignment: .leading, spacing: Space.s5) {
                     VStack(alignment: .leading, spacing: Space.s5) { headline }
                         .modifier(PaperHalo())
@@ -68,6 +69,13 @@ struct RootView: View {
                 .frame(width: 340)
         }
         .background(Ink.paper)
+        .overlay {
+            if model.drainPhase != .closed {
+                DrainSheet(model: model)
+                    .transition(.opacity)
+            }
+        }
+        .animation(Motion.settle, value: model.drainPhase != .closed)
     }
 
     /// Le grand chiffre : ce qui compte le plus à cet instant.
@@ -109,8 +117,14 @@ struct RootView: View {
                 .buttonStyle(SealButtonStyle())
                 .disabled(true)
         case .surveyed:
-            Button("Refaire le relevé") { model.startSurvey() }
-                .buttonStyle(TraceButtonStyle())
+            VStack(alignment: .trailing, spacing: Space.s3) {
+                Button("Assécher les marais") { model.prepareDrain() }
+                    .buttonStyle(SealButtonStyle())
+                    .keyboardShortcut(.defaultAction)
+                    .disabled(model.reclaimableBytes == 0)
+                Button("Refaire le relevé") { model.startSurvey() }
+                    .buttonStyle(NoteButtonStyle())
+            }
         }
     }
 }

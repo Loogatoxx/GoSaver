@@ -58,6 +58,11 @@ enum Snapshot {
             print("géographie \(laidOut - start), impressions \(clock.now - laidOut)")
         }
 
+        // `--assechement` : feuille de confirmation sur le vrai plan (lecture seule, rien n'est supprimé).
+        if args.contains("--assechement") {
+            model.previewDrain(Drainer.standard().plan())
+        }
+
         for (scheme, name) in [(ColorScheme.light, "papier"), (.dark, "lampe")] {
             NSAppearance.current = NSAppearance(named: scheme == .dark ? .darkAqua : .aqua)
             let view = RootView(model: model)

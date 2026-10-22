@@ -93,3 +93,20 @@
 - Charte : composants §6.9 à §6.12.
 
 **Objectif :** que la carte devienne un outil — on y lit un lieu, on le choisit, on voit ce qu'il contient — avant de brancher les actions (assécher, déplacer).
+
+## 2026-10-22 — Assèchement (nettoyage)
+
+**Prompt :** « J'ai testé : le clic et le survol marchent. Commite, pousse, puis enchaîne sur l'assèchement (nettoyage). »
+
+**Réponse :** commit `38f394b` poussé ; assèchement des caches, journaux et (sur demande) de la corbeille, avec feuille de confirmation et érosion animée. Testé uniquement sur un faux dossier personnel : aucune suppression n'a été faite sur le vrai disque.
+
+**Modifications :**
+- `GoSaverCore/Drainage.swift` : `Drainer` (racines en liste blanche, plan en lecture seule, exécution qui revérifie chaque chemin résolu, liens supprimés en tant que liens, applis ouvertes épargnées), `RunningApp`.
+- `Survey.removing` : relevé allégé après suppression, sans tout relever à nouveau.
+- `AtlasModel` : déroulé planification → confirmation → assèchement → bilan ; corbeille décochée par défaut ; `landRevision` pour redessiner la carte.
+- `DrainSheet` : feuille à double filet, case à cocher « registre », total en vermillon, mention « définitif » pour la corbeille, applis ouvertes listées.
+- Bouton Sceau « Assécher les marais » après le relevé ; érosion : l'ancien relief s'affaisse, le nouveau se pose.
+- `gosaver-survey --plan-assechement` : ce qui partirait, sans rien supprimer (6 Go de caches + 450 Mo de journaux sur ce Mac).
+- 6 tests de sécurité et de mise à jour (19 au total), dont un lien piégé vers les Documents.
+
+**Objectif :** première action qui libère vraiment de la place, avec des garde-fous vérifiés par des tests avant d'être confiés à l'utilisateur.

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 import GoSaverCore
 
 /// État de l'atlas, partagé par tous les écrans.
@@ -121,6 +122,76 @@ final class AtlasModel {
     }
 
     private var task: Task<Void, Never>?
+
+    // MARK: - Assèchement
+
+    enum DrainPhase: Equatable {
+        case closed
+        case planning
+        case confirming
+        case draining(removed: Int64)
+        case done(removed: Int64, failures: Int)
+    }
+
+    private(set) var drainPhase: DrainPhase = .closed
+    private(set) var drainPlan: Drainer.Plan?
+    /// Vider aussi la corbeille (définitif) : décoché par défaut, c'est à l'utilisateur de le vouloir.
+    var includeTrash = false
+    /// Change à chaque modification du terrain : la carte se reconstruit (avec érosion).
+    private(set) var landRevision = 0
+
+    /// Prépare le plan (lecture seule) et ouvre la feuille de confirmation.
+    func prepareDrain() {
+        drainPhase = .planning
+        let running = NSWorkspace.shared.runningApplications
+            .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != Bundle.main.bundleIdentifier }
+            .map { RunningApp(bundleID: $0.bundleIdentifier ?? "", name: $0.localizedName ?? "") }
+        Task {
+            let plan = await Task.detached(priority: .userInitiated) { Drainer.standard().plan(running: running) }.value
+            drainPlan = plan
+            drainPhase = .confirming
+        }
+    }
+
+    /// Ce que la feuille propose réellement d'assécher, selon la case « corbeille ».
+    var drainSelection: [Drainer.Item] {
+        (drainPlan?.items ?? []).filter { includeTrash || $0.kind != .trash }
+    }
+
+    /// Mode instantané : affiche la feuille de confirmation pour un plan donné (rien n'est supprimé).
+    func previewDrain(_ plan: Drainer.Plan) {
+        drainPlan = plan
+        drainPhase = .confirming
+    }
+
+    func cancelDrain() {
+        drainPhase = .closed
+        drainPlan = nil
+    }
+
+    /// Supprime pour de bon ce que la feuille a montré. Appelé seulement par le bouton de confirmation.
+    func confirmDrain() {
+        guard let plan = drainPlan, drainPhase == .confirming else { return }
+        let chosen = plan.keeping(includeTrash ? Set(Drainer.Kind.allCases) : [.cache, .log])
+        drainPhase = .draining(removed: 0)
+        Task {
+            let result = await Task.detached(priority: .userInitiated) {
+                Drainer.standard().execute(chosen) { removed in
+                    Task { @MainActor in self.drainPhase = .draining(removed: removed) }
+                }
+            }.value
+            let removedSet = Set(result.failures.map(\.path))
+            let removed = chosen.items.filter { !removedSet.contains($0.url.path) }.map { (url: $0.url, bytes: $0.bytes) }
+            if let survey {
+                apply(.finished(survey.removing(removed, volume: .of())))
+            } else {
+                volume = .of()
+            }
+            selectedID = nil
+            landRevision += 1
+            drainPhase = .done(removed: result.removedBytes, failures: result.failures.count)
+        }
+    }
 
     func startSurvey() {
         guard phase != .surveying else { return }

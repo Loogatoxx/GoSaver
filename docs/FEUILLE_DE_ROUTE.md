@@ -9,17 +9,17 @@
 | Fondations | Charte « Atlas », jetons Swift, polices, `bundle.sh`, mode `--snapshot` |
 | Relevé | Moteur parallèle en lecture seule (~10 s pour tout le disque), zones, enclaves, Registre |
 | Carte 3D | Géographie proportionnelle, limite du disque, impression gravée, plan-relief RealityKit, brouillard, caméra en orbite bornée |
+| Interaction | Visée à la souris, jalon, vol de caméra, fiche de lieu, sélection partagée avec le Registre |
+| Assèchement | Caches, journaux et corbeille (sur demande) ; liste blanche, revérification des chemins, applis ouvertes épargnées ; érosion animée |
 
 ## À venir (dans l'ordre)
 
-1. **Interaction avec la carte** : survol et clic sur un lieu (fiche, mise en évidence dans le Registre), légende cliquable.
-2. **Assèchement (nettoyage)** : caches et corbeille, avec confirmation et animation d'érosion (le relief s'abaisse, la mer gagne).
-3. **Accès complet au disque** : écran d'explication et lien vers Réglages, relevé des zones aujourd'hui refusées.
-4. **Déplaçabilité** (voir ci-dessous), puis **Outre-mer** : migration vers le Lexar, convois animés, rapatriement.
-5. **Lazaret** : enquête sur les fichiers mystères, quarantaine de 30 jours, suppression automatique.
-6. **IA locale** (Foundation Models) : propositions de rangement et explications, toujours validées par l'utilisateur.
-7. **Sons** (synthèse modale) et passes `/design-critique`, `/accessibility-review`, `/ux-copy`.
-8. Après l'appli : aide au rangement du Lexar.
+1. **Accès complet au disque** : écran d'explication et lien vers Réglages, relevé des zones aujourd'hui refusées.
+2. **Déplaçabilité** (voir ci-dessous), puis **Outre-mer** : migration vers le Lexar, convois animés, rapatriement.
+3. **Lazaret** : enquête sur les fichiers mystères, quarantaine de 30 jours, suppression automatique.
+4. **IA locale** (Foundation Models) : propositions de rangement et explications, toujours validées par l'utilisateur.
+5. **Sons** (synthèse modale) et passes `/design-critique`, `/accessibility-review`, `/ux-copy`.
+6. Après l'appli : aide au rangement du Lexar.
 
 ---
 

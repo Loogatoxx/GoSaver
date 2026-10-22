@@ -27,9 +27,11 @@ struct AtlasMapView: View {
     @State private var viewSize: CGSize = .zero
     @State private var hoverPoint: CGPoint?
     @State private var lastClick: Date?
+    /// Révision du terrain actuellement affichée (pour savoir si c'est une érosion).
+    @State private var shownRevision = 0
 
     /// Ce qui impose de reconstruire la carte : un nouveau relevé, ou un changement de thème.
-    private var buildKey: String { "\(model.phase == .surveyed)-\(colorScheme)" }
+    private var buildKey: String { "\(model.phase == .surveyed)-\(colorScheme)-\(model.landRevision)" }
 
     var body: some View {
         RealityView { content in
@@ -132,13 +134,32 @@ struct AtlasMapView: View {
         lap("scène 3D")
         Log.map.notice("carte construite (relevé : \(surveyed))")
 
-        next.setFog(surveyed ? 0.62 : 0.92)
+        // Érosion : le terrain a changé après un assèchement. Pas de brouillard,
+        // l'ancien relief s'affaisse puis le nouveau se pose.
+        let erosion = surveyed && scene != nil && model.landRevision != shownRevision
+        shownRevision = model.landRevision
+        if erosion, let old = scene, !reduceMotion {
+            await animate(duration: 0.6) { t in
+                old.relief.scale.y = 1 - 0.35 * Float(t * t)
+            }
+        }
+
+        next.setFog(surveyed ? (erosion ? 0 : 0.62) : 0.92)
         stage.children.removeAll()
         stage.addChild(next.root)
         scene = next
         layout = surveyed ? built : nil
 
-        if surveyed { await liftFog(from: 0.62, on: next) }
+        if erosion, !reduceMotion {
+            await animate(duration: 0.8) { t in
+                // Le nouveau terrain se pose, avec un léger tassement final.
+                let settle = 1 - pow(1 - t, 3)
+                next.relief.scale.y = 0.65 + 0.35 * Float(settle) + 0.03 * Float(sin(t * .pi))
+            }
+            next.relief.scale.y = 1
+        } else if surveyed, !erosion {
+            await liftFog(from: 0.62, on: next)
+        }
     }
 
     /// Le brouillard se lève (1,6 s), ou disparaît d'un coup si les animations sont réduites.

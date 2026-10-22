@@ -49,6 +49,33 @@ public struct Survey: Sendable {
     public let deniedPaths: [String]
     public let duration: Duration
 
+    public init(volume: VolumeInfo, places: [Place], deniedPaths: [String], duration: Duration) {
+        self.volume = volume
+        self.places = places
+        self.deniedPaths = deniedPaths
+        self.duration = duration
+    }
+
+    /// Le même relevé après suppression d'éléments : chaque lieu qui les contenait
+    /// est allégé d'autant, et le volume est relu.
+    public func removing(_ removed: [(url: URL, bytes: Int64)], volume newVolume: VolumeInfo) -> Survey {
+        let updated = places.compactMap { place -> Place? in
+            let base = place.url.path
+            let lost = removed.reduce(Int64(0)) { sum, item in
+                let path = item.url.path
+                return path == base || path.hasPrefix(base + "/") ? sum + item.bytes : sum
+            }
+            guard lost > 0 else { return place }
+            let bytes = max(0, place.bytes - lost)
+            guard bytes > 0 else { return nil }
+            return Place(url: place.url, name: place.name, zone: place.zone, terrain: place.terrain,
+                         bytes: bytes, fileCount: place.fileCount, largestFiles: place.largestFiles.filter { file in
+                             !removed.contains { file.url.path == $0.url.path || file.url.path.hasPrefix($0.url.path + "/") }
+                         }, isEnclave: place.isEnclave)
+        }
+        return Survey(volume: newVolume, places: updated, deniedPaths: deniedPaths, duration: duration)
+    }
+
     public var surveyedBytes: Int64 { places.reduce(0) { $0 + $1.bytes } }
 
     /// Ce qui n'a pas été relevé : système scellé, instantanés APFS, zones protégées.

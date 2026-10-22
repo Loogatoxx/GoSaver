@@ -4,6 +4,18 @@ import GoSaverCore
 // Lance un relevé complet en lecture seule et affiche le résultat brut.
 // Usage : swift run -c release gosaver-survey
 
+// `--plan-assechement` : montre ce que l'assèchement supprimerait, SANS rien supprimer.
+if CommandLine.arguments.contains("--plan-assechement") {
+    let size = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+    let plan = Drainer.standard().plan()
+    for kind in Drainer.Kind.allCases {
+        print("\(kind.label) : \(size(plan.bytes(of: kind))) en \(plan.count(of: kind)) éléments")
+    }
+    print("Laissés (appli ouverte) : \(plan.inUse.count), illisibles : \(plan.unreadable.map(\.label))")
+    for item in plan.items.prefix(8) { print("  \(size(item.bytes))\t\(item.owner)") }
+    exit(0)
+}
+
 let surveyor = Surveyor()
 var planned = 0
 var done = 0
