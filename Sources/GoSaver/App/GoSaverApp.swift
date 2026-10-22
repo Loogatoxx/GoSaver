@@ -77,7 +77,8 @@ struct RootView: View {
                 // La fiche du lieu sélectionné, au-dessus de tout, à la place de l'en-tête.
                 if let id = model.selectedID, let landmark = model.landmark(id: id) {
                     PlaceSheet(landmark: landmark, onClose: { model.selectedID = nil },
-                               onSend: { verdict in model.prepareSend(landmark, verdict: verdict) })
+                               onSend: { verdict in model.prepareSend(landmark, verdict: verdict) },
+                               onQuarantine: { model.prepareQuarantine(landmark) })
                         .padding(.top, Space.s7)
                         .padding(.leading, Space.s7)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

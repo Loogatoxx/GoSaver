@@ -147,6 +147,12 @@ final class AtlasModel {
         case running(stage: Convoy.Stage, done: Int64, total: Int64, returning: Bool)
         case arrived(name: String, bytes: Int64, linked: Bool, place: String)
         case relocated(name: String, place: String)
+        /// Lazaret : confirmation, arrivée, restauration, suppression immédiate.
+        case confirmQuarantine(url: URL, bytes: Int64)
+        case quarantined(name: String, until: Date)
+        case confirmRestore(Lazaret.Entry)
+        case confirmDiscard(Lazaret.Entry)
+        case discarded(name: String)
         case returned(name: String)
         case failed(String)
     }
@@ -181,9 +187,26 @@ final class AtlasModel {
         return TargetVolume.externalVolumes().first
     }
 
+    /// Ce qui attend au Lazaret, de la plus proche expiration à la plus lointaine.
+    private(set) var lazaretEntries: [Lazaret.Entry] = []
+    /// Éléments supprimés automatiquement (délai écoulé) lors de la dernière vérification.
+    private(set) var lastPurge: [Lazaret.Entry] = []
+
     func refreshHarbor() {
         harborVolume = Self.currentHarbor()
         convoys = harborVolume.map { Convoy(target: $0).records() } ?? []
+        if let harbor = harborVolume {
+            // Le Lazaret se vide de lui-même : ce qui a dépassé ses 30 jours part maintenant.
+            let lazaret = Lazaret(target: harbor)
+            let purged = lazaret.purgeExpired()
+            if !purged.isEmpty {
+                lastPurge = purged
+                Log.convoy.notice("Lazaret : \(purged.count) élément(s) expiré(s) supprimé(s)")
+            }
+            lazaretEntries = lazaret.entries()
+        } else {
+            lazaretEntries = []
+        }
         guard let volume = harborVolume?.url else { placement = nil; indexedVolume = nil; return }
         guard volume != indexedVolume else { return }
         indexedVolume = volume
@@ -202,6 +225,74 @@ final class AtlasModel {
     }
 
     func prepareReturn(_ record: Convoy.Record) { convoyPhase = .confirmReturn(record) }
+
+    // MARK: Lazaret
+
+    func prepareQuarantine(_ landmark: Landmark) {
+        guard let url = landmark.places.first?.url else { return }
+        convoyPhase = .confirmQuarantine(url: url, bytes: landmark.bytes)
+    }
+    func prepareRestore(_ entry: Lazaret.Entry) { convoyPhase = .confirmRestore(entry) }
+    func prepareDiscard(_ entry: Lazaret.Entry) { convoyPhase = .confirmDiscard(entry) }
+
+    func confirmQuarantine() {
+        guard case .confirmQuarantine(let url, let bytes) = convoyPhase, let target = harborVolume else { return }
+        convoyPhase = .running(stage: .judging, done: 0, total: bytes, returning: false)
+        Task {
+            let outcome: Result<Lazaret.Entry, Error> = await Task.detached(priority: .userInitiated) {
+                Result {
+                    try Lazaret(target: target).quarantine(url) { p in
+                        Task { @MainActor in
+                            if case .running = self.convoyPhase {
+                                self.convoyPhase = .running(stage: p.stage, done: p.bytesDone, total: max(p.bytesTotal, bytes), returning: false)
+                            }
+                        }
+                    }
+                }
+            }.value
+            switch outcome {
+            case .success(let entry):
+                if let survey {
+                    apply(.finished(survey.removing([(url: url, bytes: entry.bytes)], volume: .of())))
+                }
+                selectedID = nil
+                landRevision += 1
+                refreshHarbor()
+                convoyPhase = .quarantined(name: url.lastPathComponent, until: entry.expires)
+            case .failure(let error):
+                convoyPhase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    func confirmRestore() {
+        guard case .confirmRestore(let entry) = convoyPhase, let target = harborVolume else { return }
+        convoyPhase = .running(stage: .copying, done: 0, total: entry.bytes, returning: true)
+        Task {
+            let outcome: Result<Void, Error> = await Task.detached(priority: .userInitiated) {
+                Result { try Lazaret(target: target).restore(entry) }
+            }.value
+            switch outcome {
+            case .success:
+                refreshHarbor()
+                volume = .of()
+                convoyPhase = .returned(name: URL(fileURLWithPath: entry.original).lastPathComponent)
+            case .failure(let error):
+                convoyPhase = .failed(error.localizedDescription)
+            }
+        }
+    }
+
+    func confirmDiscard() {
+        guard case .confirmDiscard(let entry) = convoyPhase, let target = harborVolume else { return }
+        do {
+            try Lazaret(target: target).discardNow(entry)
+            refreshHarbor()
+            convoyPhase = .discarded(name: URL(fileURLWithPath: entry.original).lastPathComponent)
+        } catch {
+            convoyPhase = .failed(error.localizedDescription)
+        }
+    }
 
     func prepareRelocate(_ record: Convoy.Record) {
         convoyPhase = .confirmRelocate(record)

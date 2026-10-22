@@ -30,6 +30,26 @@ struct ConvoySheet: View {
             title("\(name) est rangé")
             Text("Désormais dans « \(place) » sur \(harborName).").font(Typo.water).foregroundStyle(Ink.inkFaded)
             closeButton
+        case .confirmQuarantine(let url, let bytes):
+            confirmQuarantine(url: url, bytes: bytes)
+        case .quarantined(let name, let until):
+            title("\(name) est au Lazaret")
+            Text("Ton Mac est libéré. Récupérable jusqu’au \(until.formatted(date: .long, time: .omitted)) ; ensuite, supprimé pour de bon.")
+                .font(Typo.water).foregroundStyle(Ink.inkFaded)
+                .fixedSize(horizontal: false, vertical: true)
+            closeButton
+        case .confirmRestore(let entry):
+            twoButtons(title: "Restaurer",
+                       text: "« \(URL(fileURLWithPath: entry.original).lastPathComponent) » revient à \(entry.original.replacingOccurrences(of: NSHomeDirectory(), with: "~")) — \(Bytes.format(entry.bytes)) à reprendre sur le disque interne.",
+                       action: "Restaurer") { model.confirmRestore() }
+        case .confirmDiscard(let entry):
+            twoButtons(title: "Supprimer maintenant",
+                       text: "« \(URL(fileURLWithPath: entry.original).lastPathComponent) » sera supprimé définitivement de \(harborName), sans attendre la fin du délai. Impossible de le récupérer ensuite.",
+                       action: "Supprimer définitivement") { model.confirmDiscard() }
+        case .discarded(let name):
+            title("\(name) est supprimé")
+            Text("Il n’est plus au Lazaret.").font(Typo.water).foregroundStyle(Ink.inkFaded)
+            closeButton
         case .returned(let name):
             title("\(name) est revenu à sa place")
             Text("La copie a été vérifiée, puis retirée de \(harborName).")
@@ -114,6 +134,44 @@ struct ConvoySheet: View {
                 .buttonStyle(TraceButtonStyle()).keyboardShortcut(.cancelAction)
             Spacer()
             Button("Rapatrier") { model.confirmReturn() }
+                .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
+        }
+    }
+
+    @ViewBuilder
+    private func confirmQuarantine(url: URL, bytes: Int64) -> some View {
+        title("Mettre au Lazaret")
+        VStack(alignment: .leading, spacing: Space.s1) {
+            Text(url.lastPathComponent).font(Typo.heading).foregroundStyle(Ink.ink)
+            Text(url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                .font(Typo.figure).foregroundStyle(Ink.inkFaded).lineLimit(1).truncationMode(.middle)
+        }
+        Text("Il part sur \(harborName), dans « GoSaver Lazaret ». Ton Mac récupère \(Bytes.format(bytes)) tout de suite. Tu peux le restaurer pendant 30 jours ; ensuite, il est supprimé automatiquement.")
+            .font(Typo.water).foregroundStyle(Ink.inkFaded)
+            .fixedSize(horizontal: false, vertical: true)
+        Text("La suppression se fait quand GoSaver est ouvert avec \(harborName) branché.")
+            .font(Typo.label).foregroundStyle(Ink.inkFaded)
+        HStack(spacing: Space.s3) {
+            Button("Annuler") { model.closeConvoy() }
+                .buttonStyle(TraceButtonStyle()).keyboardShortcut(.cancelAction)
+            Spacer()
+            Button("Mettre au Lazaret") { model.confirmQuarantine() }
+                .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
+        }
+        .padding(.top, Space.s2)
+    }
+
+    @ViewBuilder
+    private func twoButtons(title text: String, text detail: String, action label: String,
+                            perform: @escaping () -> Void) -> some View {
+        title(text)
+        Text(detail).font(Typo.water).foregroundStyle(Ink.inkFaded)
+            .fixedSize(horizontal: false, vertical: true)
+        HStack(spacing: Space.s3) {
+            Button("Annuler") { model.closeConvoy() }
+                .buttonStyle(TraceButtonStyle()).keyboardShortcut(.cancelAction)
+            Spacer()
+            Button(label, action: perform)
                 .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
         }
     }

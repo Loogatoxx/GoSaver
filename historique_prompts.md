@@ -218,3 +218,18 @@
 - `GOSAVER_HARBOR` (développement) : faire pointer l'appli vers un disque de test ; journal `Log.convoy`.
 
 **Objectif :** que l'état de chaque envoi soit visible d'un coup d'œil, et pouvoir déboguer les convois sans toucher au vrai disque.
+
+## 2026-10-22 — Lazaret (corbeille du Lexar)
+
+**Prompt :** « Commite, pousse, puis fais le Lazaret : la corbeille sur le Lexar qui se vide toute seule au bout de 30 jours. »
+
+**Réponse :** commit `3979006` poussé ; Lazaret construit, testé sur faux disque et sur un disque exFAT de test (expiration automatique, restauration). Aucune donnée réelle déplacée.
+
+**Modifications :**
+- `GoSaverCore/Mobility/Lazaret.swift` : mise au Lazaret (même protocole que les convois, rangement par jour « GoSaver Lazaret/2026-10-22/… »), registre `registre-du-lazaret.json` sur le disque, restauration, expiration (suppression définitive après 30 jours, uniquement à l'intérieur du Lazaret), suppression immédiate sur demande.
+- Règles : refus pour système, bac à sable et **iCloud** (isoler un fichier synchronisé l'effacerait de tous les appareils) ; le « déconseillé » est accepté (on ne compte plus s'en servir) ; liens symboliques et place revérifiés.
+- Droits remis à la normale (644/755) au retour d'un disque exFAT, pour les rapatriements et les restaurations.
+- Interface : « Mettre au Lazaret » dans la fiche, feuilles de confirmation, section Lazaret du Registre (jours restants, Restaurer, Supprimer), purge à l'ouverture avec message.
+- 9 tests (60 au total).
+
+**Objectif :** une corbeille sans risque sur le Lexar : le Mac est libéré tout de suite, on a 30 jours pour changer d'avis, puis le ménage se fait seul.

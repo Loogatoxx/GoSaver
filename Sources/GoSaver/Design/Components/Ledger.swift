@@ -63,6 +63,7 @@ struct Ledger: View {
                 section(terrain)
             }
             outremer
+            lazaret
         }
         .padding(Space.s5)
     }
@@ -92,6 +93,58 @@ struct Ledger: View {
                 }
                 ForEach(model.convoys) { record in
                     convoyRow(record, on: harbor)
+                }
+            }
+            .padding(.top, Space.s4)
+        }
+    }
+
+    /// Le Lazaret : la corbeille du disque externe, avec le temps qu'il reste à chaque élément.
+    @ViewBuilder
+    private var lazaret: some View {
+        if let harbor = model.harborVolume {
+            VStack(alignment: .leading, spacing: 0) {
+                HStack(alignment: .firstTextBaseline) {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Lazaret").font(Typo.heading).foregroundStyle(Ink.ink)
+                        Text("Corbeille de \(harbor.name) · vidée après 30 jours").font(Typo.label).foregroundStyle(Ink.inkFaded)
+                    }
+                    Spacer()
+                    if !model.lazaretEntries.isEmpty {
+                        Text(Bytes.format(model.lazaretEntries.reduce(Int64(0)) { $0 + $1.bytes }))
+                            .font(Typo.figure).foregroundStyle(Ink.ochre)
+                    }
+                }
+                .padding(.vertical, Space.s3)
+                if !model.lastPurge.isEmpty {
+                    Text("\(model.lastPurge.count) élément\(model.lastPurge.count > 1 ? "s ont" : " a") atteint ses 30 jours et \(model.lastPurge.count > 1 ? "ont été supprimés" : "a été supprimé").")
+                        .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                        .padding(.bottom, Space.s2)
+                }
+                if model.lazaretEntries.isEmpty {
+                    Text("Vide. Depuis la fiche d’un lieu, « Mettre au Lazaret » y envoie ce dont tu ne veux plus.")
+                        .font(Typo.water).foregroundStyle(Ink.inkFaded)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                ForEach(model.lazaretEntries) { entry in
+                    VStack(alignment: .leading, spacing: 2) {
+                        HStack(spacing: Space.s2) {
+                            Text(URL(fileURLWithPath: entry.original).lastPathComponent)
+                                .font(Typo.body).foregroundStyle(Ink.ink).lineLimit(1)
+                            Spacer(minLength: Space.s2)
+                            Text(Bytes.format(entry.bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+                        }
+                        HStack(spacing: Space.s2) {
+                            let days = entry.daysLeft()
+                            Text(days <= 1 ? "supprimé demain" : "encore \(days) jours")
+                                .font(Typo.label).foregroundStyle(days <= 3 ? Ink.ochre : Ink.inkFaded)
+                            Spacer(minLength: Space.s2)
+                            Button("Restaurer") { model.prepareRestore(entry) }.buttonStyle(NoteButtonStyle())
+                            Button("Supprimer") { model.prepareDiscard(entry) }.buttonStyle(NoteButtonStyle())
+                        }
+                    }
+                    .padding(.vertical, Space.s1)
+                    .accessibilityElement(children: .contain)
                 }
             }
             .padding(.top, Space.s4)

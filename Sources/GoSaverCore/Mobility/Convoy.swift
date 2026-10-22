@@ -220,6 +220,7 @@ public struct Convoy: Sendable {
             }
         }
         progress(Progress(stage: .replacing, bytesDone: record.bytes, bytesTotal: record.bytes))
+        normalizePermissions(partial)
         if isOurLink { try? fm.removeItem(at: original) }
         do { try fm.moveItem(at: partial, to: original) } catch {
             try? fm.removeItem(at: partial)
@@ -375,6 +376,20 @@ public struct Convoy: Sendable {
                 progress(done)
             }
         }
+    }
+
+    /// Au retour d'un disque qui ne garde pas les droits (exFAT), macOS invente des droits
+    /// « rwx------ ». On remet ceux d'un document ordinaire : fichiers rw-r--r--, dossiers rwxr-xr-x.
+    func normalizePermissions(_ root: URL) {
+        guard !target.format.keepsPermissions else { return }
+        let fm = FileManager.default
+        func fix(_ url: URL) {
+            let v = try? url.resourceValues(forKeys: [.isDirectoryKey, .isSymbolicLinkKey])
+            guard v?.isSymbolicLink != true else { return }
+            try? fm.setAttributes([.posixPermissions: v?.isDirectory == true ? 0o755 : 0o644], ofItemAtPath: url.path)
+        }
+        fix(root)
+        for relative in Self.relativePaths(under: root) { fix(root.appendingPathComponent(relative)) }
     }
 
     /// Chemins relatifs de tout ce que contient un dossier (sans suivre les liens).
