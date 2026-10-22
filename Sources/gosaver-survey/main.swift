@@ -16,6 +16,26 @@ if CommandLine.arguments.contains("--plan-assechement") {
     exit(0)
 }
 
+// `--deplacabilite chemin…` : verdict de déplaçabilité vers le premier disque externe branché.
+// Lecture seule : rien n'est déplacé.
+if let flag = CommandLine.arguments.firstIndex(of: "--deplacabilite") {
+    let size = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+    let target = TargetVolume.externalVolumes().first
+    print("Destination : \(target.map { "\($0.name) (\($0.format.label), \(size($0.freeBytes)) libres)" } ?? "aucun disque externe")\n")
+    let judge = MobilityJudge(target: target)
+    for path in CommandLine.arguments[(flag + 1)...] {
+        let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath)
+        let v = judge.judge(url)
+        print("\(v.mobility.label.uppercased())  \(path)")
+        print("  \(v.reason)")
+        if let advice = v.advice { print("  → \(advice)") }
+        for note in v.notes { print("  · \(note)") }
+        if let c = v.contents { print("  [\(c.files) fichiers, \(size(c.allocatedBytes)) ici, \(size(v.bytesOnTarget ?? 0)) sur la destination]") }
+        print("")
+    }
+    exit(0)
+}
+
 let surveyor = Surveyor()
 var planned = 0
 var done = 0

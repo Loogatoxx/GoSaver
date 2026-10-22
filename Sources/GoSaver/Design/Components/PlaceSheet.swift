@@ -7,6 +7,8 @@ import GoSaverCore
 struct PlaceSheet: View {
     let landmark: AtlasModel.Landmark
     let onClose: () -> Void
+    /// Verdict de déplaçabilité vers le disque externe, calculé à l'ouverture (lecture seule).
+    @State private var mobility: (verdict: MobilityVerdict, target: TargetVolume?)?
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s3) {
@@ -43,6 +45,9 @@ struct PlaceSheet: View {
                 }
             }
 
+            GraduatedRule()
+            mobilitySection
+
             if let path = landmark.places.first?.url.path, landmark.places.count == 1 {
                 Text(path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                     .font(Typo.figure).foregroundStyle(Ink.inkFaded)
@@ -67,6 +72,53 @@ struct PlaceSheet: View {
         .overlay(DogEaredSheet().stroke(Ink.ink, lineWidth: Stroke.hairline))
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Fiche de \(landmark.title)")
+        .task(id: landmark.id) {
+            guard let url = landmark.places.first?.url else { return }
+            mobility = await Task.detached(priority: .userInitiated) {
+                let target = TargetVolume.externalVolumes().first
+                return (MobilityJudge(target: target).judge(url), target)
+            }.value
+        }
+    }
+
+    /// « Outre-mer » : peut-on envoyer ce lieu sur le disque externe ?
+    @ViewBuilder
+    private var mobilitySection: some View {
+        VStack(alignment: .leading, spacing: Space.s1) {
+            HStack(alignment: .firstTextBaseline) {
+                Text("Outre-mer").regionStyle().foregroundStyle(Ink.inkFaded)
+                Spacer()
+                if let mobility {
+                    Text(mobility.verdict.mobility.label.uppercased())
+                        .font(Typo.region).tracking(Typo.regionTracking)
+                        .foregroundStyle(Self.color(mobility.verdict.mobility))
+                }
+            }
+            if let mobility {
+                Text(mobility.verdict.reason)
+                    .font(Typo.body).foregroundStyle(Ink.ink)
+                    .fixedSize(horizontal: false, vertical: true)
+                if let advice = mobility.verdict.advice {
+                    Text(advice).font(Typo.water).foregroundStyle(Ink.sea)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+                Text(mobility.target.map { "Vers \($0.name) (\($0.format.label), \(Bytes.format($0.freeBytes)) libres)" }
+                     ?? "Aucun disque externe branché.")
+                    .font(Typo.label).foregroundStyle(Ink.inkFaded)
+            } else {
+                Text("Examen du contenu…").font(Typo.water).foregroundStyle(Ink.inkFaded)
+            }
+        }
+        .accessibilityElement(children: .combine)
+    }
+
+    static func color(_ mobility: Mobility) -> Color {
+        switch mobility {
+        case .free: Ink.forest
+        case .withLink: Ink.sea
+        case .discouraged: Ink.ochre
+        case .forbidden: Ink.vermilion
+        }
     }
 
     private var fileCountText: String {

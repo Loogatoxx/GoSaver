@@ -158,3 +158,19 @@
 - `docs/FEUILLE_DE_ROUTE.md` : section « Signature de développement » (vérifier, supprimer, limites).
 
 **Objectif :** ne plus perdre l'accès complet au disque à chaque recompilation. Il faut le réactiver une dernière fois, car l'identité vient de changer.
+
+## 2026-10-22 — Déplaçabilité
+
+**Prompt :** « J'ai réactivé l'accès complet au disque. Commite, pousse, puis attaque la déplaçabilité dans le moteur. »
+
+**Réponse :** commit `b5758fc` poussé ; juge de déplaçabilité écrit, testé, essayé en lecture seule sur les vrais dossiers, puis affiché dans la fiche de lieu. Accès complet au disque conservé après recompilation (signature stable vérifiée en conditions réelles).
+
+**Modifications :**
+- `GoSaverCore/Mobility/TargetVolume.swift` : disque cible (format lu par `statfs` : APFS, Mac OS étendu, exFAT, FAT32), place libre, ce que le format sait garder ; liste des disques externes branchés.
+- `GoSaverCore/Mobility/MobilityJudge.swift` : constats par règles (emplacement → contenu → disque cible), verdict = constat le plus sévère, raison + conseil + précisions ; parcours du contenu (liens, programmes réels, dépôt git, iCloud, fichiers creux, plus gros fichier).
+- Corrections après l'essai réel : seuls les vrais programmes comptent (pas une photo marquée exécutable), l'alternative (assécher, supprimer, passer par l'appli) prime, les dossiers de /Applications sont des applis, les programmes concernés sont cités.
+- `PlaceSheet` : section « Outre-mer » (verdict coloré, raison, conseil, disque visé).
+- `gosaver-survey --deplacabilite chemin…` : verdicts en lecture seule.
+- 15 tests (36 au total).
+
+**Objectif :** que rien ne parte sur le Lexar sans une raison vérifiable ; l'IA ne fera que reformuler ces verdicts.
