@@ -169,7 +169,7 @@ struct MapPrint: View {
         for region in layout.regions.filter({ $0.cellCount > 0 }).sorted(by: { $0.cellCount > $1.cellCount }) {
             let size = min(26, max(11, sqrt(Double(region.cellCount)) * 0.45)) * unit
             place(at: point(region.label, nudge: -size * 0.9)) { ink, _ in
-                Text(region.terrain.name.uppercased())
+                Text(Words.terrain(region.terrain).uppercased())
                     .font(.custom("Archivo", size: size).weight(.semibold))
                     .tracking(size * 0.32)
                     .foregroundColor(ink)
@@ -189,7 +189,7 @@ struct MapPrint: View {
         if let sea = seaLabelPoint() {
             let size = 14 * unit
             place(at: sea, halo: false) { _, _ in
-                Text("Mer libre — \(Bytes.format(seaBytes))")
+                Text("\(Words.atlas ? "Mer libre" : "Espace libre") — \(Bytes.format(seaBytes))")
                     .font(.custom("Newsreader", size: size).italic())
                     .foregroundColor(Ink.sea)
             }

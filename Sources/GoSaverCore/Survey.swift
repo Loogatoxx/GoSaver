@@ -14,6 +14,12 @@ public struct Place: Sendable, Identifiable, Hashable {
     public let largestFiles: [FileItem]
     /// Vrai pour une enclave (node_modules, Library/Caches d'une appli…) trouvée dans un lieu.
     public var isEnclave = false
+
+    /// Le même lieu, rangé dans un autre terrain (ex. des données d'appli disparue → Ruines).
+    public func with(terrain: Terrain) -> Place {
+        Place(url: url, name: name, zone: zone, terrain: terrain, bytes: bytes, fileCount: fileCount,
+              largestFiles: largestFiles, isEnclave: isEnclave)
+    }
 }
 
 public struct FileItem: Sendable, Hashable {

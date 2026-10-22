@@ -233,3 +233,30 @@
 - 9 tests (60 au total).
 
 **Objectif :** une corbeille sans risque sur le Lexar : le Mac est libéré tout de suite, on a 30 jours pour changer d'avis, puis le ménage se fait seul.
+
+## 2026-10-22 — Ruines (fichiers mystères) et Réglages complets
+
+**Prompt :** « Commite, pousse, puis attaque l'enquête sur les fichiers mystères (Ruines). » — en cours de route : « Peux-tu aussi activer une option dans les paramètres pour activer et désactiver le langage de jeu vidéo » puis « et bien sûr faire des paramètres bien complets, avec tout ce qui a besoin d'être là-bas ».
+
+**Réponse :** commit `315b5d0` poussé ; expertise des ruines calibrée sur le vrai disque (lecture seule), fiche d'expertise, isolement au Lazaret ; fenêtre de Réglages complète, chaque option branchée ; lexique Atlas/Classique appliqué en direct.
+
+**Modifications :**
+- `GoSaverCore/Ruins/Clues.swift` : indices (vrai contenu par « nombre magique » — un `.ts` vidéo ou TypeScript —, type macOS, provenance et appli de téléchargement lues dans les attributs étendus, dates, dernière ouverture Spotlight).
+- `GoSaverCore/Ruins/Expertise.swift` : données d'applis disparues (appli absente ET intacte depuis 90 j, prudent : BraveSoftware ↔ Brave Browser), doublons à contenu identique (empreinte complète), installeurs d'applis installées, téléchargements interrompus, fichiers d'origine inconnue (« à examiner », jamais isolés seuls).
+- Sur ce Mac : 12 ruines sûres (~1,7 Go : Whisky 896 Mo, Opera, OpenEmu, Wondershare, Docker, GIMP, GitHub Desktop, PokeMMO-v62.dmg, steam.dmg…) ; `data_Loogatox` × 2 correctement non signalés (contenus différents).
+- Interface : terrain Ruines sur la carte, section Ruines du Registre, `RuinSheet` (tampon, résumé, indices, Lazaret/Conserver/Finder), « Isoler les N ruines sûres ».
+- `Surveyor` : dossiers exclus. `Place.with(terrain:)`.
+- `Preferences`, `Words`, `SettingsView` (Général, Relevé, Nettoyage, Disque externe, Accès, À propos).
+- 8 tests (68 au total).
+
+**Objectif :** reconnaître ce qui ne sert plus en expliquant pourquoi, et laisser l'utilisateur régler l'appli à son goût, y compris son ton.
+
+## 2026-10-22 — « Où est le bouton pour accéder aux paramètres ? »
+
+**Prompt :** capture d'écran + « où est le bouton pour accéder au paramètre ».
+
+**Réponse :** les Réglages n'étaient accessibles que par le menu GoSaver et ⌘, — convention Mac, mais invisible dans la fenêtre. Ajout d'un bouton.
+
+**Modifications :** bouton « Réglages » (icône engrenage + texte, style Note) en haut à droite de la carte, via `SettingsLink`.
+
+**Objectif :** qu'aucune fonction importante ne dépende de la connaissance des conventions macOS.

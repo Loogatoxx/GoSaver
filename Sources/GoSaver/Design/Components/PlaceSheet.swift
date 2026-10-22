@@ -16,7 +16,7 @@ struct PlaceSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: Space.s3) {
-            Text("\(landmark.terrain.name) · \(landmark.terrain.meaning)")
+            Text("\(Words.terrain(landmark.terrain)) · \(Words.terrainDetail(landmark.terrain))")
                 .regionStyle()
                 .foregroundStyle(Ink.inkFaded)
             Text(landmark.title)
@@ -90,7 +90,7 @@ struct PlaceSheet: View {
     private var mobilitySection: some View {
         VStack(alignment: .leading, spacing: Space.s1) {
             HStack(alignment: .firstTextBaseline) {
-                Text("Outre-mer").regionStyle().foregroundStyle(Ink.inkFaded)
+                Text(Words.outremer).regionStyle().foregroundStyle(Ink.inkFaded)
                 Spacer()
                 if let mobility {
                     Text(mobility.verdict.mobility.label.uppercased())
@@ -111,13 +111,13 @@ struct PlaceSheet: View {
                     .font(Typo.label).foregroundStyle(Ink.inkFaded)
                 HStack(spacing: Space.s3) {
                     if mobility.target != nil, mobility.verdict.mobility <= .withLink, landmark.places.count == 1, let onSend {
-                        Button("Envoyer outre-mer") { onSend(mobility.verdict) }
+                        Button(Words.sendOutremer) { onSend(mobility.verdict) }
                             .buttonStyle(TraceButtonStyle())
                     }
                     // Le Lazaret accepte aussi le « déconseillé » : on ne compte plus s'en servir.
                     if mobility.target != nil, mobility.verdict.mobility < .forbidden || mobility.verdict.contents != nil,
                        landmark.places.count == 1, let onQuarantine {
-                        Button("Mettre au Lazaret", action: onQuarantine)
+                        Button(Words.toLazaret, action: onQuarantine)
                             .buttonStyle(NoteButtonStyle())
                     }
                 }

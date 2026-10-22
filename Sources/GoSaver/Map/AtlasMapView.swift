@@ -15,7 +15,9 @@ import GoSaverCore
 struct AtlasMapView: View {
     let model: AtlasModel
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @Environment(\.accessibilityReduceMotion) private var systemReduceMotion
+    /// Animations réduites : réglage d'accessibilité de macOS, ou réglage de GoSaver.
+    private var reduceMotion: Bool { systemReduceMotion || Preferences.shared.reducedAnimations }
     @State private var stage = Entity()
     @State private var scene: AtlasScene?
     @State private var layout: AtlasLayout?
@@ -31,7 +33,7 @@ struct AtlasMapView: View {
     @State private var shownRevision = 0
 
     /// Ce qui impose de reconstruire la carte : un nouveau relevé, ou un changement de thème.
-    private var buildKey: String { "\(model.phase == .surveyed)-\(colorScheme)-\(model.landRevision)" }
+    private var buildKey: String { "\(model.phase == .surveyed)-\(colorScheme)-\(model.landRevision)-\(Words.atlas)" }
 
     var body: some View {
         RealityView { content in
@@ -251,7 +253,7 @@ struct AtlasMapView: View {
             VStack(alignment: .leading, spacing: 2) {
                 Text(landmark.title).font(Typo.bodyStrong).foregroundStyle(Ink.ink)
                 HStack(spacing: Space.s2) {
-                    Text(landmark.terrain.name).font(Typo.label).foregroundStyle(Ink.inkFaded)
+                    Text(Words.terrain(landmark.terrain)).font(Typo.label).foregroundStyle(Ink.inkFaded)
                     Text(Bytes.format(landmark.bytes)).font(Typo.figure).foregroundStyle(Ink.ink)
                 }
             }

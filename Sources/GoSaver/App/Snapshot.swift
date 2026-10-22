@@ -26,7 +26,10 @@ enum Snapshot {
 
         let model = AtlasModel()
         if args.contains("--survey") {
-            model.load(blockingSurvey())
+            let survey = blockingSurvey()
+            _ = waitFor { await model.load(survey) }
+            // `--ruine` : ouvre la fiche d'expertise de la première ruine.
+            if args.contains("--ruine") { model.selectedID = model.visibleRuins.first?.id }
         }
 
         // Impression de la carte seule (2D), pour vérifier la cartographie.

@@ -15,11 +15,24 @@ public struct Surveyor: Sendable {
     /// Nombre de lieux mesurés en même temps. Au-delà, le SSD sature et on ne gagne rien.
     public let parallelism: Int
 
-    public init(zones: [Zone] = Zone.standard(), volume: URL = URL(fileURLWithPath: "/"), parallelism: Int = 8) {
-        self.zones = zones
+    /// Dossiers que l'utilisateur a exclus du relevé (réglages) : jamais parcourus,
+    /// leur taille reste comptée dans le Massif (la part non relevée).
+    public let excluded: Set<String>
+
+    public init(zones: [Zone] = Zone.standard(), volume: URL = URL(fileURLWithPath: "/"), parallelism: Int = 8,
+                excluded: [URL] = []) {
+        let excludedPaths = Set(excluded.map(\.standardizedFileURL.path))
+        self.excluded = excludedPaths
+        // Une zone entièrement exclue disparaît du relevé.
+        self.zones = zones.filter { zone in
+            !excludedPaths.contains { zone.root.path == $0 || zone.root.path.hasPrefix($0 + "/") }
+        }
         self.volume = volume
         self.parallelism = parallelism
     }
+
+    /// Racines de zones + dossiers exclus : le parcours s'arrête net sur les deux.
+    private var stopPaths: Set<String> { Set(zones.map(\.root.path)).union(excluded) }
 
     public func survey() -> AsyncStream<SurveyEvent> {
         AsyncStream { continuation in
@@ -97,7 +110,7 @@ public struct Surveyor: Sendable {
 
     /// Découpe les zones en lieux, sans jamais compter deux fois le même dossier.
     func plan() -> [Job] {
-        let roots = Set(zones.map(\.root.path))
+        let roots = stopPaths
         var jobs: [Job] = []
         for zone in zones {
             guard zone.splitsIntoPlaces else {
@@ -133,7 +146,7 @@ public struct Surveyor: Sendable {
     /// Mesure un lieu. Renvoie le lieu lui-même, plus un lieu par enclave trouvée
     /// dedans (node_modules → Carrières, Library/Caches d'une appli → Marais…).
     func measure(_ job: Job, tally: Tally) -> [Place] {
-        let roots = Set(zones.map(\.root.path))
+        let roots = stopPaths
         var measure = Measure()
         var enclaves: [Place] = []
 

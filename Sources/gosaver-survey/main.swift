@@ -58,6 +58,21 @@ if let flag = CommandLine.arguments.firstIndex(of: "--placement") {
     exit(0)
 }
 
+// `--ruines` : expertise des ruines (lecture seule).
+if CommandLine.arguments.contains("--ruines") {
+    let size = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+    let clock = ContinuousClock()
+    let start = clock.now
+    let ruins = Archaeologist().excavate()
+    print("\(ruins.count) ruines en \(clock.now - start)\n")
+    for ruin in ruins {
+        print("\(ruin.verdict.stamp)  \(ruin.kind.label) · \(size(ruin.bytes))  \(ruin.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))")
+        print("    « \(ruin.summary) »")
+        for reason in ruin.reasons { print("    · \(reason)") }
+    }
+    exit(0)
+}
+
 let surveyor = Surveyor()
 var planned = 0
 var done = 0

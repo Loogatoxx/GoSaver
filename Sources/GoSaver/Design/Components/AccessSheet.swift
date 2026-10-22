@@ -66,7 +66,7 @@ struct AccessSheet: View {
                 Text("Accès accordé. Refais le relevé pour lever le reste du brouillard.")
                     .font(Typo.bodyStrong).foregroundStyle(Ink.forest)
             }
-            Button("Refaire le relevé") {
+            Button(Words.redoSurvey) {
                 model.accessSheetOpen = false
                 model.startSurvey()
             }

@@ -197,3 +197,20 @@ struct PickingTests {
         #expect(board.hit(origin: [3, 1, 0], direction: [1, -0.1, 0], layout: layout) == nil)
     }
 }
+
+@Suite("Relevé — exclusions")
+struct SurveyorExclusionTests {
+    @Test("Un dossier exclu n'est jamais parcouru")
+    func excludedFolder() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("gosaver-excl-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        for path in ["Documents/garder/a", "Documents/secret/b"] {
+            let url = root.appendingPathComponent(path)
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+            try Data(repeating: 1, count: 40_000).write(to: url)
+        }
+        let survey = await Surveyor(zones: [Zone(root.appendingPathComponent("Documents"), .fields, "Documents")],
+                                    volume: root, excluded: [root.appendingPathComponent("Documents/secret")]).surveyAll()
+        #expect(survey.places.map(\.name) == ["garder"])
+    }
+}

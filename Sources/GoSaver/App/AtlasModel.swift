@@ -149,6 +149,7 @@ final class AtlasModel {
         case relocated(name: String, place: String)
         /// Lazaret : confirmation, arrivée, restauration, suppression immédiate.
         case confirmQuarantine(url: URL, bytes: Int64)
+        case confirmQuarantineRuins(count: Int, bytes: Int64)
         case quarantined(name: String, until: Date)
         case confirmRestore(Lazaret.Entry)
         case confirmDiscard(Lazaret.Entry)
@@ -157,7 +158,7 @@ final class AtlasModel {
         case failed(String)
     }
 
-    private(set) var convoyPhase: ConvoyPhase = .closed
+    var convoyPhase: ConvoyPhase = .closed
     /// Disque externe visé (le premier branché), relu à la demande.
     private(set) var harborVolume: TargetVolume? = AtlasModel.currentHarbor()
     /// Ce qui est déjà outre-mer, d'après le registre de bord du disque.
@@ -184,7 +185,10 @@ final class AtlasModel {
         if let forced = ProcessInfo.processInfo.environment["GOSAVER_HARBOR"] {
             return TargetVolume.detect(URL(fileURLWithPath: forced))
         }
-        return TargetVolume.externalVolumes().first
+        let volumes = TargetVolume.externalVolumes()
+        // Réglage « disque de destination » : celui-là s'il est branché, sinon le premier venu.
+        let chosen = UserDefaults.standard.string(forKey: "disqueExterne") ?? ""
+        return volumes.first { $0.url.path == chosen } ?? volumes.first
     }
 
     /// Ce qui attend au Lazaret, de la plus proche expiration à la plus lointaine.
@@ -197,7 +201,7 @@ final class AtlasModel {
         convoys = harborVolume.map { Convoy(target: $0).records() } ?? []
         if let harbor = harborVolume {
             // Le Lazaret se vide de lui-même : ce qui a dépassé ses 30 jours part maintenant.
-            let lazaret = Lazaret(target: harbor)
+            let lazaret = Lazaret(target: harbor, retention: Preferences.shared.lazaretRetention)
             let purged = lazaret.purgeExpired()
             if !purged.isEmpty {
                 lastPurge = purged
@@ -237,11 +241,12 @@ final class AtlasModel {
 
     func confirmQuarantine() {
         guard case .confirmQuarantine(let url, let bytes) = convoyPhase, let target = harborVolume else { return }
+        let lazaret = Lazaret(target: target, retention: Preferences.shared.lazaretRetention)
         convoyPhase = .running(stage: .judging, done: 0, total: bytes, returning: false)
         Task {
             let outcome: Result<Lazaret.Entry, Error> = await Task.detached(priority: .userInitiated) {
                 Result {
-                    try Lazaret(target: target).quarantine(url) { p in
+                    try lazaret.quarantine(url) { p in
                         Task { @MainActor in
                             if case .running = self.convoyPhase {
                                 self.convoyPhase = .running(stage: p.stage, done: p.bytesDone, total: max(p.bytesTotal, bytes), returning: false)
@@ -437,6 +442,7 @@ final class AtlasModel {
     /// Prépare le plan (lecture seule) et ouvre la feuille de confirmation.
     func prepareDrain() {
         drainPhase = .planning
+        includeTrash = Preferences.shared.trashCheckedByDefault
         let running = NSWorkspace.shared.runningApplications
             .filter { $0.activationPolicy == .regular && $0.bundleIdentifier != Bundle.main.bundleIdentifier }
             .map { RunningApp(bundleID: $0.bundleIdentifier ?? "", name: $0.localizedName ?? "") }
@@ -496,16 +502,109 @@ final class AtlasModel {
         survey = nil
         plannedPlaces = 0
         surveyedPlaces = 0
+        let excluded = Preferences.shared.excludedURLs
         task = Task {
-            for await event in Surveyor().survey() {
-                apply(event)
+            for await event in Surveyor(excluded: excluded).survey() {
+                // Fin du relevé : l'expertise des ruines passe avant que la carte ne se dessine.
+                if case .finished(let survey) = event {
+                    apply(.finished(await expertise(of: survey)))
+                    // Réglage « isoler automatiquement » : les ruines sûres partent au Lazaret sans demander.
+                    if Preferences.shared.autoIsolateRuins, harborVolume != nil, !safeRuins.isEmpty {
+                        convoyPhase = .confirmQuarantineRuins(count: safeRuins.count, bytes: safeRuins.reduce(0) { $0 + $1.bytes })
+                        confirmQuarantineRuins()
+                    }
+                } else {
+                    apply(event)
+                }
             }
         }
     }
 
+    // MARK: - Ruines
+
+    /// Trouvailles de l'expertise (dernier relevé), sauf celles que l'utilisateur a choisi de conserver.
+    private(set) var ruins: [Ruin] = []
+    var visibleRuins: [Ruin] { ruins.filter { !keptRuins.contains($0.id) } }
+    /// Ruines que l'utilisateur a décidé de garder : on ne les signale plus.
+    private(set) var keptRuins: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "ruinesConservees") ?? [])
+
+    func ruin(id: String) -> Ruin? { visibleRuins.first { $0.id == id } }
+
+    /// Réglages : réafficher les ruines qu'on avait choisi de conserver.
+    func resetKeptRuins() {
+        keptRuins = []
+        UserDefaults.standard.removeObject(forKey: "ruinesConservees")
+    }
+
+    func keepRuin(_ ruin: Ruin) {
+        keptRuins.insert(ruin.id)
+        UserDefaults.standard.set(Array(keptRuins), forKey: "ruinesConservees")
+        if selectedID == ruin.id { selectedID = nil }
+    }
+
+    /// Lance l'expertise (lecture seule) et range les données d'applis disparues dans le terrain « Ruines ».
+    func expertise(of survey: Survey) async -> Survey {
+        let orphanAge = TimeInterval(Preferences.shared.orphanDays) * 86_400
+        let found = await Task.detached(priority: .userInitiated) {
+            var archaeologist = Archaeologist()
+            archaeologist.orphanAge = orphanAge
+            return archaeologist.excavate()
+        }.value
+        ruins = found
+        let orphans = Set(found.filter { $0.kind == .orphanAppData && !keptRuins.contains($0.id) }.map(\.url.path))
+        guard !orphans.isEmpty else { return survey }
+        let places = survey.places.map { place in
+            orphans.contains(place.url.path) ? place.with(terrain: .ruins) : place
+        }
+        return Survey(volume: survey.volume, places: places, deniedPaths: survey.deniedPaths, duration: survey.duration)
+    }
+
+    /// Ruines sûres (verdict « à isoler »), prêtes pour le Lazaret.
+    var safeRuins: [Ruin] { visibleRuins.filter { $0.verdict == .isolate } }
+
+    func prepareQuarantineRuins() {
+        let list = safeRuins
+        guard !list.isEmpty else { return }
+        convoyPhase = .confirmQuarantineRuins(count: list.count, bytes: list.reduce(0) { $0 + $1.bytes })
+    }
+
+    /// Met les ruines sûres au Lazaret, une par une ; un échec n'arrête pas les suivantes.
+    func confirmQuarantineRuins() {
+        guard case .confirmQuarantineRuins(_, let total) = convoyPhase, let target = harborVolume else { return }
+        let list = safeRuins
+        let lazaret = Lazaret(target: target, retention: Preferences.shared.lazaretRetention)
+        convoyPhase = .running(stage: .copying, done: 0, total: total, returning: false)
+        Task {
+            var moved: [(url: URL, bytes: Int64)] = []
+            var failures: [String] = []
+            var until = Date()
+            for ruin in list {
+                let result: Result<Lazaret.Entry, Error> = await Task.detached(priority: .userInitiated) {
+                    Result { try lazaret.quarantine(ruin.url) }
+                }.value
+                switch result {
+                case .success(let entry):
+                    moved.append((ruin.url, entry.bytes))
+                    until = entry.expires
+                    convoyPhase = .running(stage: .copying, done: moved.reduce(0) { $0 + $1.bytes }, total: total, returning: false)
+                case .failure(let error):
+                    failures.append("\(ruin.url.lastPathComponent) : \(error.localizedDescription)")
+                }
+            }
+            ruins.removeAll { ruin in moved.contains { $0.url == ruin.url } }
+            if let survey { apply(.finished(survey.removing(moved, volume: .of()))) }
+            selectedID = nil
+            landRevision += 1
+            refreshHarbor()
+            convoyPhase = failures.isEmpty
+                ? .quarantined(name: "\(moved.count) ruine\(moved.count > 1 ? "s" : "")", until: until)
+                : .failed("\(moved.count) ruine(s) mise(s) au Lazaret ; \(failures.count) n’ont pas pu partir :\n" + failures.joined(separator: "\n"))
+        }
+    }
+
     /// Applique un relevé déjà fait (mode instantané).
-    func load(_ survey: Survey) {
-        apply(.finished(survey))
+    func load(_ survey: Survey) async {
+        apply(.finished(await expertise(of: survey)))
     }
 
     /// Lieux reçus mais pas encore affichés : on les publie par paquets, au rythme

@@ -32,6 +32,10 @@ struct ConvoySheet: View {
             closeButton
         case .confirmQuarantine(let url, let bytes):
             confirmQuarantine(url: url, bytes: bytes)
+        case .confirmQuarantineRuins(let count, let bytes):
+            twoButtons(title: "Isoler les ruines sûres",
+                       text: "\(count) ruine\(count > 1 ? "s partent" : " part") au Lazaret de \(harborName) : \(Bytes.format(bytes)) rendus à ton Mac. Chacune reste restaurable 30 jours.",
+                       action: "Isoler \(Bytes.format(bytes))") { model.confirmQuarantineRuins() }
         case .quarantined(let name, let until):
             title("\(name) est au Lazaret")
             Text("Ton Mac est libéré. Récupérable jusqu’au \(until.formatted(date: .long, time: .omitted)) ; ensuite, supprimé pour de bon.")
@@ -88,7 +92,7 @@ struct ConvoySheet: View {
 
     @ViewBuilder
     private func confirmSend(url: URL, verdict: Mobility, reason: String, bytes: Int64) -> some View {
-        title("Envoyer outre-mer")
+        title(Words.sendOutremer)
         VStack(alignment: .leading, spacing: Space.s1) {
             Text(url.lastPathComponent).font(Typo.heading).foregroundStyle(Ink.ink)
             Text(url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
@@ -140,7 +144,7 @@ struct ConvoySheet: View {
 
     @ViewBuilder
     private func confirmQuarantine(url: URL, bytes: Int64) -> some View {
-        title("Mettre au Lazaret")
+        title(Words.toLazaret)
         VStack(alignment: .leading, spacing: Space.s1) {
             Text(url.lastPathComponent).font(Typo.heading).foregroundStyle(Ink.ink)
             Text(url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
@@ -155,7 +159,7 @@ struct ConvoySheet: View {
             Button("Annuler") { model.closeConvoy() }
                 .buttonStyle(TraceButtonStyle()).keyboardShortcut(.cancelAction)
             Spacer()
-            Button("Mettre au Lazaret") { model.confirmQuarantine() }
+            Button(Words.toLazaret) { model.confirmQuarantine() }
                 .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
         }
         .padding(.top, Space.s2)

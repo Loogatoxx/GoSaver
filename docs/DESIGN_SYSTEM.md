@@ -224,6 +224,15 @@ Variante de la fiche d'expertise (§6.5) pour un lieu sélectionné. Elle rempla
 | Clic | Sélection : jalon planté, vol de caméra (0,9 s), fiche ouverte |
 | Double-clic | Retour à la vue d'ensemble |
 
+### 6.13 Tampon (`Stamp`)
+Verdict d'expertise : capitales espacées dans un double cadre, encre à 88 %, incliné de −4°. « À ISOLER » en `vermilion`, « À EXAMINER » en `ochre`.
+
+### 6.14 Réglages
+Fenêtre native à onglets (icônes SF Symbols autorisées : c'est une barre d'outils), contenu aux couleurs de la charte : rubriques en `region`, règles graduées entre rubriques, chaque réglage = intitulé `bodyStrong` + une phrase d'explication `label` + sa commande. Cases à cocher « registre » (`SurveyCheckboxStyle`), jamais d'interrupteur en pilule.
+
+### 6.15 Lexique
+Deux voix, choisies dans les Réglages : **Atlas** (Marais, Carrières, Lazaret, Outre-mer…) et **Classique** (Caches, Outils de dev, Corbeille du disque externe, Disque externe…). Tout texte d'interface qui porte la métaphore passe par `Words` ; les chiffres et les verdicts ne changent jamais.
+
 ---
 
 ## 7. Mouvement

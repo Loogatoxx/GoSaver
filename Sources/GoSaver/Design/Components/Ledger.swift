@@ -10,7 +10,7 @@ struct Ledger: View {
 
     private var terrains: [Terrain] {
         Terrain.allCases
-            .filter { model.bytes(of: $0) > 0 }
+            .filter { $0 != .ruins && model.bytes(of: $0) > 0 }
             .sorted { model.bytes(of: $0) > model.bytes(of: $1) }
     }
 
@@ -36,7 +36,7 @@ struct Ledger: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Registre").regionStyle().foregroundStyle(Ink.inkFaded)
+            Text(Words.ledger).regionStyle().foregroundStyle(Ink.inkFaded)
                 .padding(.bottom, Space.s2)
             GraduatedRule()
             if model.diskAccess == .denied {
@@ -54,11 +54,12 @@ struct Ledger: View {
                 .padding(.top, Space.s3)
             }
             if terrains.isEmpty {
-                Text("Le registre se remplit pendant le relevé.")
+                Text(Words.atlas ? "Le registre se remplit pendant le relevé." : "Le détail apparaît pendant l’analyse.")
                     .font(Typo.water)
                     .foregroundStyle(Ink.inkFaded)
                     .padding(.top, Space.s4)
             }
+            if !model.visibleRuins.isEmpty { ruinsSection }
             ForEach(terrains, id: \.self) { terrain in
                 section(terrain)
             }
@@ -75,7 +76,7 @@ struct Ledger: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Outre-mer").font(Typo.heading).foregroundStyle(Ink.ink)
+                        Text(Words.outremer).font(Typo.heading).foregroundStyle(Ink.ink)
                         Text("\(harbor.name) · \(harbor.format.label) · \(Bytes.format(harbor.freeBytes)) libres")
                             .font(Typo.label).foregroundStyle(Ink.inkFaded)
                     }
@@ -99,6 +100,68 @@ struct Ledger: View {
         }
     }
 
+    /// Ruines : ce que l'expertise a trouvé, en tête du registre (c'est là qu'on agit en premier).
+    private var ruinsSection: some View {
+        let safe = model.safeRuins
+        let safeBytes = safe.reduce(Int64(0)) { $0 + $1.bytes }
+        return VStack(alignment: .leading, spacing: 0) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s3) {
+                TerrainSwatch(terrain: .ruins)
+                    .frame(width: 22, height: 14)
+                    .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(Words.terrain(.ruins)).font(Typo.heading).foregroundStyle(Ink.ink)
+                    Text("\(model.visibleRuins.count) trouvaille\(model.visibleRuins.count > 1 ? "s" : "") \(Words.atlas ? "de l’expertise" : "à vérifier")")
+                        .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                }
+                Spacer(minLength: Space.s2)
+                Text(Bytes.format(model.visibleRuins.reduce(Int64(0)) { $0 + $1.bytes }))
+                    .font(Typo.figure).foregroundStyle(Ink.ink)
+            }
+            .padding(.vertical, Space.s3)
+
+            ForEach(model.visibleRuins.prefix(8)) { ruin in
+                Button { model.toggleSelection(ruin.id) } label: {
+                    HStack(spacing: Space.s2) {
+                        VStack(alignment: .leading, spacing: 1) {
+                            Text(ruin.kind == .orphanAppData ? ruinTitle(ruin) : ruin.url.lastPathComponent)
+                                .font(model.selectedID == ruin.id ? Typo.bodyStrong : Typo.body)
+                                .foregroundStyle(Ink.ink).lineLimit(1).truncationMode(.middle)
+                            Text(ruin.kind.label).font(Typo.label).foregroundStyle(Ink.inkFaded)
+                        }
+                        Spacer(minLength: Space.s2)
+                        VStack(alignment: .trailing, spacing: 1) {
+                            Text(Bytes.format(ruin.bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+                            Text(ruin.verdict == .isolate ? "à isoler" : "à examiner")
+                                .font(Typo.label).foregroundStyle(ruin.verdict == .isolate ? Ink.vermilion : Ink.ochre)
+                        }
+                    }
+                    .padding(.leading, 22 + Space.s3)
+                    .padding(.vertical, 3)
+                    .background(model.selectedID == ruin.id ? Ink.paperSunken : .clear)
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+            }
+            if model.visibleRuins.count > 8 {
+                Text("et \(model.visibleRuins.count - 8) autres").font(Typo.water).foregroundStyle(Ink.inkFaded)
+                    .padding(.leading, 22 + Space.s3)
+            }
+            if !safe.isEmpty, model.harborVolume != nil {
+                Button("Isoler les \(safe.count) ruines sûres (\(Bytes.format(safeBytes)))") { model.prepareQuarantineRuins() }
+                    .buttonStyle(TraceButtonStyle())
+                    .padding(.leading, 22 + Space.s3)
+                    .padding(.vertical, Space.s2)
+            }
+            Rectangle().fill(Ink.contour).frame(height: Stroke.hairline).padding(.top, Space.s2)
+        }
+        .accessibilityElement(children: .contain)
+    }
+
+    private func ruinTitle(_ ruin: Ruin) -> String {
+        PlaceNames.display(raw: ruin.url.lastPathComponent)
+    }
+
     /// Le Lazaret : la corbeille du disque externe, avec le temps qu'il reste à chaque élément.
     @ViewBuilder
     private var lazaret: some View {
@@ -106,7 +169,7 @@ struct Ledger: View {
             VStack(alignment: .leading, spacing: 0) {
                 HStack(alignment: .firstTextBaseline) {
                     VStack(alignment: .leading, spacing: 2) {
-                        Text("Lazaret").font(Typo.heading).foregroundStyle(Ink.ink)
+                        Text(Words.lazaret).font(Typo.heading).foregroundStyle(Ink.ink)
                         Text("Corbeille de \(harbor.name) · vidée après 30 jours").font(Typo.label).foregroundStyle(Ink.inkFaded)
                     }
                     Spacer()
@@ -122,7 +185,7 @@ struct Ledger: View {
                         .padding(.bottom, Space.s2)
                 }
                 if model.lazaretEntries.isEmpty {
-                    Text("Vide. Depuis la fiche d’un lieu, « Mettre au Lazaret » y envoie ce dont tu ne veux plus.")
+                    Text("Vide. Depuis la fiche d’un lieu, « \(Words.toLazaret) » y envoie ce dont tu ne veux plus.")
                         .font(Typo.water).foregroundStyle(Ink.inkFaded)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -189,7 +252,7 @@ struct Ledger: View {
     /// Visible dès l'ouverture tant que l'accès complet au disque manque.
     private var accessNotice: some View {
         VStack(alignment: .leading, spacing: Space.s2) {
-            Text("Zones fermées").font(Typo.heading).foregroundStyle(Ink.ink)
+            Text(Words.closedZones).font(Typo.heading).foregroundStyle(Ink.ink)
             Text("Sans l’accès complet au disque, la corbeille et certains dossiers restent dans le brouillard.")
                 .font(Typo.label).foregroundStyle(Ink.inkFaded)
                 .fixedSize(horizontal: false, vertical: true)
@@ -210,8 +273,8 @@ struct Ledger: View {
                     .frame(width: 22, height: 14)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(terrain.name).font(Typo.heading).foregroundStyle(Ink.ink)
-                    Text(terrain.meaning).font(Typo.label).foregroundStyle(Ink.inkFaded)
+                    Text(Words.terrain(terrain)).font(Typo.heading).foregroundStyle(Ink.ink)
+                    Text(Words.terrainDetail(terrain)).font(Typo.label).foregroundStyle(Ink.inkFaded)
                 }
                 Spacer(minLength: Space.s2)
                 Text(Bytes.format(model.bytes(of: terrain)))
@@ -223,7 +286,7 @@ struct Ledger: View {
 
             // Massif : on dit franchement ce qui n'a pas pu être relevé, et comment l'ouvrir.
             if terrain == .massif, model.diskAccess != .granted, let denied = model.survey?.deniedPaths.count, denied > 0 {
-                Text("Comprend \(denied) dossiers fermés au géomètre.")
+                Text(Words.atlas ? "Comprend \(denied) dossiers fermés au géomètre." : "Comprend \(denied) dossiers protégés non analysés.")
                     .font(Typo.label).foregroundStyle(Ink.inkFaded)
                     .padding(.leading, 22 + Space.s3)
                     .padding(.bottom, Space.s2)
@@ -249,7 +312,7 @@ struct Ledger: View {
         }
         // « contain » et non « combine » : chaque lieu reste un bouton distinct pour VoiceOver.
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("\(terrain.name), \(terrain.meaning), \(Bytes.format(model.bytes(of: terrain)))")
+        .accessibilityLabel("\(Words.terrain(terrain)), \(Words.terrainDetail(terrain)), \(Bytes.format(model.bytes(of: terrain)))")
     }
 
     private func row(_ name: String, _ figure: String?, faded: Bool = false,

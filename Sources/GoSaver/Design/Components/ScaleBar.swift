@@ -22,7 +22,7 @@ struct ScaleBar: View {
                 Text("occupés").font(Typo.label).foregroundStyle(Ink.inkFaded)
                 Spacer()
                 Text(Bytes.format(capacity - used)).foregroundStyle(Ink.sea)
-                Text("de mer libre").font(Typo.water).foregroundStyle(Ink.sea)
+                Text(Words.freeSea).font(Typo.water).foregroundStyle(Ink.sea)
             }
             .font(Typo.figure)
         }

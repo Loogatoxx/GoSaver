@@ -33,7 +33,7 @@ struct DrainSheet: View {
     @ViewBuilder
     private var confirming: some View {
         let plan = model.drainPlan
-        title("Assécher les marais",
+        title(Words.drain,
               subtitle: "Caches et journaux se reforment seuls : les applis les recréent quand elles en ont besoin.")
 
         VStack(spacing: 0) {

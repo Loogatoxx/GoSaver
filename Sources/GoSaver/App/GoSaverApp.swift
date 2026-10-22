@@ -15,8 +15,13 @@ struct GoSaverApp: App {
         WindowGroup("GoSaver") {
             RootView(model: model)
                 .frame(minWidth: 1000, minHeight: 680)
-                // Au démarrage : registre de bord du disque externe et index de ses dossiers.
-                .onAppear { model.refreshHarbor() }
+                // Au démarrage : registre de bord du disque externe et index de ses dossiers,
+                // puis relevé automatique si le réglage est activé.
+                .onAppear {
+                    model.refreshHarbor()
+                    if Preferences.shared.surveyOnLaunch, model.phase == .idle { model.startSurvey() }
+                }
+                .preferredColorScheme(Preferences.shared.appearance.colorScheme)
                 // Au retour des Réglages, on revérifie la permission.
                 .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
                     model.refreshDiskAccess()
@@ -38,6 +43,11 @@ struct GoSaverApp: App {
             }
         }
         .windowToolbarStyle(.unified(showsTitle: false))
+
+        // Fenêtre des Réglages (⌘,).
+        Settings {
+            SettingsView(model: model)
+        }
     }
 }
 
@@ -74,8 +84,27 @@ struct RootView: View {
                 }
                 .padding(Space.s7)
 
+                // Accès visible aux Réglages (en plus du menu GoSaver et de ⌘,).
+                SettingsLink {
+                    Label("Réglages", systemImage: "gearshape")
+                        .labelStyle(.titleAndIcon)
+                }
+                .buttonStyle(NoteButtonStyle())
+                .help("Réglages de GoSaver (⌘,)")
+                .padding(.top, Space.s6)
+                .padding(.trailing, Space.s6)
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+
                 // La fiche du lieu sélectionné, au-dessus de tout, à la place de l'en-tête.
-                if let id = model.selectedID, let landmark = model.landmark(id: id) {
+                // Une ruine a sa propre fiche, d'expertise.
+                if let id = model.selectedID, let ruin = model.ruin(id: id) {
+                    RuinSheet(ruin: ruin, model: model)
+                        .padding(.top, Space.s7)
+                        .padding(.leading, Space.s7)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .id(id)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                } else if let id = model.selectedID, let landmark = model.landmark(id: id) {
                     PlaceSheet(landmark: landmark, onClose: { model.selectedID = nil },
                                onSend: { verdict in model.prepareSend(landmark, verdict: verdict) },
                                onQuarantine: { model.prepareQuarantine(landmark) })
@@ -113,22 +142,22 @@ struct RootView: View {
     private var headline: some View {
         switch model.phase {
         case .idle:
-            Text("Atlas du disque").regionStyle().foregroundStyle(Ink.inkFaded)
+            Text(Words.mapTitle).regionStyle().foregroundStyle(Ink.inkFaded)
             Text(Bytes.format(model.volume.free)).font(Typo.display).foregroundStyle(Ink.ink)
-            Text("de mer libre autour de l’île. Le relevé n’a pas encore commencé.")
+            Text(Words.idleLine)
                 .font(Typo.water).foregroundStyle(Ink.sea)
         case .surveying:
-            Text("Relevé en cours").regionStyle().foregroundStyle(Ink.inkFaded)
+            Text(Words.surveying).regionStyle().foregroundStyle(Ink.inkFaded)
             Text(Bytes.format(model.bytesSoFar))
                 .font(Typo.display).foregroundStyle(Ink.ink)
                 .contentTransition(.numericText())
-            Text("relevés dans \(model.surveyedPlaces) lieux sur \(model.plannedPlaces). Le brouillard se lève.")
+            Text(Words.surveyingLine(model.surveyedPlaces, model.plannedPlaces))
                 .font(Typo.water).foregroundStyle(Ink.inkFaded)
         case .surveyed:
-            Text("Relevé terminé").regionStyle().foregroundStyle(Ink.inkFaded)
+            Text(Words.surveyDone).regionStyle().foregroundStyle(Ink.inkFaded)
             Text(Bytes.format(model.reclaimableBytes))
                 .font(Typo.display).foregroundStyle(Ink.vermilion)
-            Text("de marais et de grève à assécher sans risque : ils se reforment seuls ou sont déjà à la corbeille.")
+            Text(Words.surveyedLine)
                 .font(Typo.water).foregroundStyle(Ink.inkFaded)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: 520, alignment: .leading)
@@ -139,7 +168,7 @@ struct RootView: View {
     private var action: some View {
         switch model.phase {
         case .idle:
-            Button("Lancer le relevé") { model.startSurvey() }
+            Button(Words.startSurvey) { model.startSurvey() }
                 .buttonStyle(SealButtonStyle())
                 .keyboardShortcut(.defaultAction)
         case .surveying:
@@ -148,11 +177,11 @@ struct RootView: View {
                 .disabled(true)
         case .surveyed:
             VStack(alignment: .trailing, spacing: Space.s3) {
-                Button("Assécher les marais") { model.prepareDrain() }
+                Button(Words.drain) { model.prepareDrain() }
                     .buttonStyle(SealButtonStyle())
                     .keyboardShortcut(.defaultAction)
                     .disabled(model.reclaimableBytes == 0)
-                Button("Refaire le relevé") { model.startSurvey() }
+                Button(Words.redoSurvey) { model.startSurvey() }
                     .buttonStyle(NoteButtonStyle())
             }
         }
