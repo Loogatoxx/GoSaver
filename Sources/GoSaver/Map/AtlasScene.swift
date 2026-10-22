@@ -14,6 +14,10 @@ struct AtlasScene {
     let board: Entity
     let relief: ModelEntity
     let fog: ModelEntity
+    /// Jalon d'arpenteur planté sur le lieu sélectionné.
+    let marker: Entity
+
+    static var geometry: BoardGeometry { BoardGeometry(boardSize: boardSize, reliefHeight: reliefHeight) }
 
     /// Largeur de la planche en mètres (unité RealityKit) et hauteur du plus haut sommet.
     static let boardSize: Float = 1
@@ -83,7 +87,11 @@ struct AtlasScene {
         table.components.set(ImageBasedLightReceiverComponent(imageBasedLight: root))
         root.addChild(table)
 
-        return AtlasScene(root: root, board: board, relief: relief, fog: fog)
+        let marker = makeMarker()
+        marker.isEnabled = false
+        board.addChild(marker)
+
+        return AtlasScene(root: root, board: board, relief: relief, fog: fog, marker: marker)
     }
 
     /// Opacité du brouillard, de 0 (dissipé) à 1 (tout couvert).
@@ -92,6 +100,34 @@ struct AtlasScene {
         material.blending = .transparent(opacity: .init(floatLiteral: opacity))
         fog.model?.materials = [material]
         fog.isEnabled = opacity > 0.001
+    }
+
+    /// Plante le jalon à une position (ou le retire) : il tombe de quelques centimètres
+    /// et se fiche dans le relief, comme un piquet d'arpenteur.
+    func plant(at position: SIMD3<Float>?, animated: Bool) {
+        guard let position else { marker.isEnabled = false; return }
+        marker.isEnabled = true
+        var landing = Transform(translation: position)
+        landing.rotation = marker.transform.rotation
+        guard animated else { marker.transform = landing; return }
+        marker.position = position + [0, 0.07, 0]
+        marker.move(to: landing, relativeTo: marker.parent, duration: 0.32, timingFunction: .easeIn)
+    }
+
+    /// Jalon : une tige d'encre et un fanion vermillon (l'accent unique de la charte).
+    static func makeMarker() -> Entity {
+        let marker = Entity()
+        let height: Float = 0.085
+        let pole = ModelEntity(mesh: .generateCylinder(height: height, radius: 0.0016),
+                               materials: [SimpleMaterial(color: NSColor(Ink.ink), roughness: 0.6, isMetallic: false)])
+        pole.position.y = height / 2
+        // Fanion sans éclairage : il reste vermillon franc quel que soit l'angle de la lampe.
+        let flag = ModelEntity(mesh: .generateBox(width: 0.034, height: 0.02, depth: 0.0012),
+                               materials: [UnlitMaterial(color: NSColor(Ink.vermilion))])
+        flag.position = [0.017, height - 0.011, 0]
+        marker.addChild(pole)
+        marker.addChild(flag)
+        return marker
     }
 
     // MARK: - Maillage
@@ -176,9 +212,12 @@ struct AtlasScene {
     }
 
     /// Caméra de départ : vue plongeante à 50°, comme quand on se penche sur une table.
+    /// Champ de vision vertical de la caméra, en degrés (sert aussi à la visée à la souris).
+    nonisolated static let fieldOfView: Float = 32
+
     static func camera() -> PerspectiveCamera {
         let camera = PerspectiveCamera()
-        camera.camera.fieldOfViewInDegrees = 32
+        camera.camera.fieldOfViewInDegrees = fieldOfView
         camera.look(at: [0, 0, 0.04], from: [0, 1.25, 1.05], relativeTo: nil)
         return camera
     }

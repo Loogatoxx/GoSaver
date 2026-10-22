@@ -73,7 +73,16 @@ struct Ledger: View {
             .padding(.vertical, Space.s3)
 
             ForEach(places.prefix(placesPerTerrain)) { place in
-                row(place.title, Bytes.format(place.bytes))
+                Button {
+                    model.toggleSelection(place.id)
+                } label: {
+                    row(place.title, Bytes.format(place.bytes),
+                        selected: model.selectedID == place.id,
+                        hovered: model.hoveredID == place.id)
+                }
+                .buttonStyle(.plain)
+                .accessibilityAddTraits(model.selectedID == place.id ? .isSelected : [])
+                .accessibilityHint("Montre ce lieu sur la carte")
             }
             if places.count > placesPerTerrain {
                 let rest = places.dropFirst(placesPerTerrain).reduce(Int64(0)) { $0 + $1.bytes }
@@ -85,10 +94,11 @@ struct Ledger: View {
         .accessibilityElement(children: .combine)
     }
 
-    private func row(_ name: String, _ figure: String?, faded: Bool = false) -> some View {
+    private func row(_ name: String, _ figure: String?, faded: Bool = false,
+                     selected: Bool = false, hovered: Bool = false) -> some View {
         HStack(spacing: Space.s2) {
             Text(name)
-                .font(faded ? Typo.water : Typo.body)
+                .font(faded ? Typo.water : (selected ? Typo.bodyStrong : Typo.body))
                 .foregroundStyle(faded ? Ink.inkFaded : Ink.ink)
                 .lineLimit(1)
                 .truncationMode(.middle)
@@ -99,5 +109,16 @@ struct Ledger: View {
         }
         .padding(.leading, 22 + Space.s3)
         .padding(.vertical, 3)
+        // Sélection : fond en creux, comme une ligne soulignée au crayon dans un registre.
+        .background(alignment: .leading) {
+            if selected || hovered {
+                Rectangle()
+                    .fill(selected ? Ink.paperSunken : Ink.paperSunken.opacity(0.5))
+                    .padding(.leading, 22 + Space.s1)
+                    .padding(.horizontal, -Space.s1)
+            }
+        }
+        .contentShape(Rectangle())
+        .animation(Motion.quick, value: selected)
     }
 }

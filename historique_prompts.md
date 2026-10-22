@@ -75,3 +75,21 @@
 - `docs/FEUILLE_DE_ROUTE.md` : étapes restantes et règles de déplaçabilité.
 
 **Objectif :** donner à l'atlas son cœur visuel. Choix technique : pas de compilateur Metal sans Xcode, donc pas de shader ; on imprime une carte 2D riche et on la drape sur un relief (principe des plans-reliefs), ce qui garde la 3D et la légende parfaitement cohérentes.
+
+## 2026-10-22 — Interaction avec la carte
+
+**Prompt :** « Oui, commite et pousse la carte 3D, puis enchaîne sur l'interaction avec la carte. »
+
+**Réponse :** commit `4fbba33` poussé ; survol, clic, jalon, vol de caméra et fiche de lieu ajoutés ; la sélection est partagée entre carte et Registre.
+
+**Modifications :**
+- `GoSaverCore/Cartography/Picking.swift` : `BoardGeometry` (planche ↔ grille, rayon → cellule touchée, avance par pas puis dichotomie) + 3 tests.
+- `AtlasModel` : sélection et survol partagés, repères enrichis (terrain, fichiers, plus gros fichiers).
+- `Ledger` : lignes cliquables, surlignage sélection/survol.
+- `AtlasScene` : jalon d'arpenteur (fanion vermillon sans éclairage), planté avec une chute de 7 cm.
+- `AtlasMapView` : gestes sur un calque transparent (la vue RealityKit gardait les clics), un seul geste de clic (simple/double par horodatage), visée par rayon, vol de caméra, étiquette de survol ; `Orbit.project` (projection inverse).
+- `PlaceSheet` : fiche de lieu au coin corné, « Montrer dans le Finder », bouton Note.
+- Contrôle de visée dans le mode instantané : croix calculée + jalon rendu par RealityKit → superposés au pixel près.
+- Charte : composants §6.9 à §6.12.
+
+**Objectif :** que la carte devienne un outil — on y lit un lieu, on le choisit, on voit ce qu'il contient — avant de brancher les actions (assécher, déplacer).

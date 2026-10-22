@@ -206,6 +206,24 @@ Coin inférieur droit. Les motifs de terrain avec leur nom. Cliquer un motif iso
 ### 6.8 Convoi (`Convoy`)
 Migration vers Outre-mer : tracé pointillé `vermilion` de l'île au continent, petit navire gravé qui suit la route au rythme réel de la copie. La route reste dessinée après coup (historique visible).
 
+### 6.9 Jalon (`marker`)
+Piquet d'arpenteur planté sur le lieu sélectionné : tige d'encre, fanion vermillon sans éclairage (il reste lisible quel que soit l'angle de la lampe). Il tombe de 7 cm et se fiche dans le relief en 320 ms.
+
+### 6.10 Étiquette de survol
+Petite feuille `paperRaised`, filet `hairline`, ombre `sheet` : nom en `bodyStrong`, terrain en `label`, taille en `figure`. Suit le pointeur avec un décalage de 16 × 18 pt, ne capte jamais les clics.
+
+### 6.11 Fiche de lieu (`PlaceSheet`)
+Variante de la fiche d'expertise (§6.5) pour un lieu sélectionné. Elle remplace l'en-tête en haut à gauche de la carte, coin corné, et contient : terrain, nom, taille et nombre de fichiers, « se reforme seul » si le terrain se régénère, les six plus gros fichiers, le chemin (sélectionnable), « Montrer dans le Finder » (Tracé) et « Fermer » (Note, touche Échap).
+
+### 6.12 Gestes sur la carte
+| Geste | Effet |
+|---|---|
+| Glisser | Tourner autour du point visé (inclinaison bornée de 25° à 80°) |
+| Pincer | S'approcher ou s'éloigner (0,5 à 3,4 m) |
+| Survoler | Étiquette du lieu, ligne du Registre surlignée |
+| Clic | Sélection : jalon planté, vol de caméra (0,9 s), fiche ouverte |
+| Double-clic | Retour à la vue d'ensemble |
+
 ---
 
 ## 7. Mouvement

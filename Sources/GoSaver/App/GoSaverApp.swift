@@ -34,6 +34,9 @@ struct RootView: View {
                 VStack(alignment: .leading, spacing: Space.s5) {
                     VStack(alignment: .leading, spacing: Space.s5) { headline }
                         .modifier(PaperHalo())
+                        // Quand une fiche est ouverte, elle prend la place de l'en-tête.
+                        .opacity(model.selectedID == nil ? 1 : 0)
+                        .allowsHitTesting(false)
                     Spacer()
                     HStack(alignment: .bottom, spacing: Space.s5) {
                         Cartouche(
@@ -49,7 +52,18 @@ struct RootView: View {
                              reclaimable: model.reclaimableBytes)
                 }
                 .padding(Space.s7)
+
+                // La fiche du lieu sélectionné, au-dessus de tout, à la place de l'en-tête.
+                if let id = model.selectedID, let landmark = model.landmark(id: id) {
+                    PlaceSheet(landmark: landmark) { model.selectedID = nil }
+                        .padding(.top, Space.s7)
+                        .padding(.leading, Space.s7)
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        .id(id)
+                        .transition(.move(edge: .leading).combined(with: .opacity))
+                }
             }
+            .animation(Motion.settle, value: model.selectedID)
             Ledger(model: model)
                 .frame(width: 340)
         }

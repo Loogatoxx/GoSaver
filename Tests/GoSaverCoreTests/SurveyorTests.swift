@@ -166,3 +166,34 @@ struct AtlasLayoutTests {
         #expect(a.place.values == b.place.values)
     }
 }
+
+@Suite("Visée")
+struct PickingTests {
+    let layout = AtlasLayout.build(AtlasInput(capacity: 250, used: 200, regions: [
+        .init(terrain: .city, bytes: 150, places: [.init(id: "a", name: "A", bytes: 100), .init(id: "b", name: "B", bytes: 50)]),
+        .init(terrain: .fields, bytes: 50, places: []),
+    ]), size: 96)
+    let board = BoardGeometry(boardSize: 1, reliefHeight: 0.11)
+
+    @Test("Un rayon vertical au-dessus du repère d'un lieu touche ce lieu")
+    func verticalRayHitsPlace() throws {
+        let target = try #require(layout.places.first { $0.id == "a" })
+        let ground = board.world(normalized: target.label, on: layout)
+        let cell = try #require(board.hit(origin: ground + [0, 1, 0], direction: [0, -1, 0], layout: layout))
+        #expect(layout.place(at: cell)?.id == "a")
+    }
+
+    @Test("Un rayon oblique retrouve le point visé")
+    func obliqueRay() throws {
+        let target = try #require(layout.places.first { $0.id == "b" })
+        let ground = board.world(normalized: target.label, on: layout)
+        let eye = SIMD3<Float>(0.2, 1.3, 1.1)
+        let cell = try #require(board.hit(origin: eye, direction: ground - eye, layout: layout))
+        #expect(layout.place(at: cell)?.id == "b")
+    }
+
+    @Test("Un rayon qui passe à côté de la planche ne touche rien")
+    func missesBoard() {
+        #expect(board.hit(origin: [3, 1, 0], direction: [1, -0.1, 0], layout: layout) == nil)
+    }
+}

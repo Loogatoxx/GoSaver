@@ -43,8 +43,34 @@ final class AtlasModel {
     struct Landmark: Identifiable {
         let id: String
         let title: String
+        let terrain: Terrain
         let bytes: Int64
         let places: [Place]
+
+        var fileCount: Int { places.reduce(0) { $0 + $1.fileCount } }
+        /// Les plus gros fichiers de tous les lieux du repère.
+        var largestFiles: [FileItem] {
+            places.flatMap(\.largestFiles).sorted { $0.bytes > $1.bytes }.prefix(6).map { $0 }
+        }
+    }
+
+    // MARK: - Sélection
+
+    /// Repère choisi (clic sur la carte ou dans le registre).
+    var selectedID: String?
+    /// Repère survolé à la souris sur la carte.
+    var hoveredID: String?
+
+    /// Retrouve un repère par son identifiant (le même sur la carte et dans le registre).
+    func landmark(id: String) -> Landmark? {
+        for terrain in Terrain.allCases {
+            if let hit = landmarks(of: terrain).first(where: { $0.id == id }) { return hit }
+        }
+        return nil
+    }
+
+    func toggleSelection(_ id: String) {
+        selectedID = selectedID == id ? nil : id
     }
 
     /// Lieux d'un terrain, du plus gros au plus petit. Les enclaves de même genre
@@ -56,13 +82,15 @@ final class AtlasModel {
             if let kind = Self.enclaveKind(place) {
                 groups[kind, default: []].append(place)
             } else {
-                singles.append(Landmark(id: place.id, title: PlaceNames.display(place), bytes: place.bytes, places: [place]))
+                singles.append(Landmark(id: place.id, title: PlaceNames.display(place), terrain: terrain,
+                                        bytes: place.bytes, places: [place]))
             }
         }
         for (kind, members) in groups {
             let total = members.reduce(Int64(0)) { $0 + $1.bytes }
             let title = members.count == 1 ? PlaceNames.display(members[0]) : "\(kind) × \(members.count)"
-            singles.append(Landmark(id: "enclave:" + kind, title: title, bytes: total, places: members))
+            singles.append(Landmark(id: "enclave:\(terrain.rawValue):" + kind, title: title, terrain: terrain,
+                                    bytes: total, places: members))
         }
         return singles.sorted { $0.bytes > $1.bytes }
     }
@@ -97,6 +125,8 @@ final class AtlasModel {
     func startSurvey() {
         guard phase != .surveying else { return }
         phase = .surveying
+        selectedID = nil
+        hoveredID = nil
         places = []
         survey = nil
         plannedPlaces = 0

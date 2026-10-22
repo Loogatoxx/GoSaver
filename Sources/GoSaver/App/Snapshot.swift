@@ -38,7 +38,20 @@ enum Snapshot {
                 // Le plan-relief 3D, rendu hors écran.
                 let scene = waitFor { try await AtlasScene.make(layout: layout, print: cg) }
                 scene?.setFog(0)
-                if let scene, let image = try? SceneRenderer.render(scene.root, camera: AtlasScene.camera(), width: 1600, height: 1000) {
+                // Contrôle de la visée : jalon planté sur le plus gros lieu, et croix là où
+                // notre propre calcul de projection dit qu'il doit apparaître.
+                let size = CGSize(width: 1600, height: 1000)
+                let orbit = Orbit()
+                let camera = AtlasScene.camera()
+                orbit.apply(to: camera)
+                var cross: CGPoint?
+                if let biggest = layout.places.filter({ !$0.isOthers }).max(by: { $0.bytes < $1.bytes }) {
+                    let ground = AtlasScene.geometry.world(normalized: biggest.label, on: layout)
+                    scene?.plant(at: ground, animated: false)
+                    cross = orbit.project(ground, in: size)
+                }
+                if let scene, var image = try? SceneRenderer.render(scene.root, camera: camera, width: Int(size.width), height: Int(size.height)) {
+                    if let cross { image = drawCross(on: image, at: cross) ?? image }
                     writePNG(image, to: folder.appendingPathComponent("relief-\(name).png"))
                 }
             }
@@ -71,6 +84,21 @@ enum Snapshot {
         }
         while !done { RunLoop.main.run(until: Date().addingTimeInterval(0.01)) }
         return result
+    }
+
+    /// Trace une petite croix vermillon (contrôle visuel de la visée).
+    static func drawCross(on image: CGImage, at point: CGPoint) -> CGImage? {
+        guard let context = CGContext(data: nil, width: image.width, height: image.height, bitsPerComponent: 8,
+                                      bytesPerRow: 0, space: CGColorSpace(name: CGColorSpace.sRGB)!,
+                                      bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue) else { return nil }
+        context.draw(image, in: CGRect(x: 0, y: 0, width: image.width, height: image.height))
+        let y = CGFloat(image.height) - point.y
+        context.setStrokeColor(CGColor(red: 1, green: 0, blue: 0, alpha: 1))
+        context.setLineWidth(2)
+        context.move(to: CGPoint(x: point.x - 14, y: y)); context.addLine(to: CGPoint(x: point.x + 14, y: y))
+        context.move(to: CGPoint(x: point.x, y: y - 14)); context.addLine(to: CGPoint(x: point.x, y: y + 14))
+        context.strokePath()
+        return context.makeImage()
     }
 
     static func writePNG(_ image: CGImage, to url: URL) {
