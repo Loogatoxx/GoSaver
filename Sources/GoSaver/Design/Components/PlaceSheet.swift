@@ -11,6 +11,9 @@ struct PlaceSheet: View {
     var onSend: ((MobilityVerdict) -> Void)?
     /// Demande de mise au Lazaret (corbeille du disque externe).
     var onQuarantine: (() -> Void)?
+    /// Désinstaller (appli) ou mettre à la corbeille de macOS (fichiers de l'utilisateur).
+    var onUninstall: ((URL) -> Void)?
+    var onTrash: (() -> Void)?
     /// Verdict de déplaçabilité vers le disque externe, calculé à l'ouverture (lecture seule).
     @State private var mobility: (verdict: MobilityVerdict, target: TargetVolume?)?
 
@@ -49,14 +52,42 @@ struct PlaceSheet: View {
                 }
             }
 
-            GraduatedRule()
-            mobilitySection
+            if landmark.places.count > 1, landmark.places.contains(where: { Uninstaller.looksLikeApp($0.url) }) {
+                GraduatedRule()
+                Text("Emplacements").regionStyle().foregroundStyle(Ink.inkFaded)
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(landmark.places, id: \.url) { place in
+                        HStack(spacing: Space.s2) {
+                            VStack(alignment: .leading, spacing: 0) {
+                                Text(Self.kind(of: place.url)).font(Typo.body).foregroundStyle(Ink.ink)
+                                Text(place.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                                    .font(Typo.label).foregroundStyle(Ink.inkFaded)
+                                    .lineLimit(1).truncationMode(.middle)
+                            }
+                            Spacer(minLength: Space.s2)
+                            Text(Bytes.format(place.bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+                        }
+                    }
+                }
+            } else {
+                GraduatedRule()
+                mobilitySection
+            }
 
             if let path = landmark.places.first?.url.path, landmark.places.count == 1 {
                 Text(path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                     .font(Typo.figure).foregroundStyle(Ink.inkFaded)
                     .lineLimit(2).truncationMode(.middle)
                     .textSelection(.enabled)
+            }
+
+            HStack(spacing: Space.s3) {
+                // Une appli (seule ou avec ses données) se désinstalle : le paquet et tous ses restes.
+                if let app = landmark.places.first(where: { Uninstaller.looksLikeApp($0.url) })?.url, let onUninstall {
+                    Button("Désinstaller") { onUninstall(app) }.buttonStyle(TraceButtonStyle())
+                } else if landmark.places.count == 1, let url = landmark.places.first?.url, Self.canTrash(url), let onTrash {
+                    Button("Mettre à la corbeille", action: onTrash).buttonStyle(TraceButtonStyle())
+                }
             }
 
             HStack(spacing: Space.s3) {
@@ -77,7 +108,7 @@ struct PlaceSheet: View {
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Fiche de \(landmark.title)")
         .task(id: landmark.id) {
-            guard let url = landmark.places.first?.url else { return }
+            guard landmark.places.count == 1, let url = landmark.places.first?.url else { return }
             mobility = await Task.detached(priority: .userInitiated) {
                 let target = TargetVolume.externalVolumes().first
                 return (MobilityJudge(target: target).judge(url), target)
@@ -127,6 +158,28 @@ struct PlaceSheet: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// Nature d'un emplacement d'appli, pour la liste « Emplacements ».
+    static func kind(of url: URL) -> String {
+        let path = url.path
+        if url.pathExtension == "app" || path.hasPrefix("/Applications/") { return "Appli" }
+        if path.contains("/Library/Group Containers/") { return "Données partagées" }
+        if path.contains("/Library/Containers/") { return "Conteneur" }
+        if path.contains("/Library/Application Support/") { return "Données" }
+        return "Autre"
+    }
+
+    /// Corbeille de macOS : seulement pour des fichiers de l'utilisateur, hors zones gérées par macOS.
+    static func canTrash(_ url: URL) -> Bool {
+        let home = NSHomeDirectory()
+        let path = url.standardizedFileURL.path
+        guard path.hasPrefix(home + "/") else { return false }
+        let relative = String(path.dropFirst(home.count + 1))
+        let protected = ["Library/Containers", "Library/Group Containers", "Library/Mobile Documents", "Library/Mail",
+                         "Library/Messages", "Library/Keychains", "Library/Preferences", "Library/Photos", ".Trash"]
+        return !protected.contains { relative == $0 || relative.hasPrefix($0 + "/") }
+            && !["Desktop", "Documents", "Downloads", "Movies", "Music", "Pictures", "Library"].contains(relative)
     }
 
     static func color(_ mobility: Mobility) -> Color {

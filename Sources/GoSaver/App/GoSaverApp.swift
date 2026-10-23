@@ -107,7 +107,9 @@ struct RootView: View {
                 } else if let id = model.selectedID, let landmark = model.landmark(id: id) {
                     PlaceSheet(landmark: landmark, onClose: { model.selectedID = nil },
                                onSend: { verdict in model.prepareSend(landmark, verdict: verdict) },
-                               onQuarantine: { model.prepareQuarantine(landmark) })
+                               onQuarantine: { model.prepareQuarantine(landmark) },
+                               onUninstall: { model.prepareUninstall($0) },
+                               onTrash: { model.prepareTrash(landmark) })
                         .padding(.top, Space.s7)
                         .padding(.leading, Space.s7)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)

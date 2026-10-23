@@ -260,3 +260,70 @@
 **Modifications :** bouton « Réglages » (icône engrenage + texte, style Note) en haut à droite de la carte, via `SettingsLink`.
 
 **Objectif :** qu'aucune fonction importante ne dépende de la connaissance des conventions macOS.
+
+## 2026-10-22 — Désinstalleur, corbeille, Registre complet, build/ et convoi animé
+
+**Prompts :** « C'est bon ça marche … tu peux continuer » ; « là par exemple je veux supprimer DaVinci Resolve, j'ai pas de bouton » ; « et quand c'est écrit par exemple 1159 autres lieux, j'aimerais bien voir pour pouvoir supprimer si des trucs m'intéressent plus ».
+
+**Réponse :** commit `2f8ca74` poussé ; dossiers `build/` reconnus (≈ 4 Go chez l'utilisateur) ; convoi animé sur la carte ; désinstalleur et corbeille dans la fiche ; Registre dépliable. Vérifié dans l'appli (fiche et feuille de désinstallation de DaVinci, sans désinstaller).
+
+**Modifications :**
+- `Enclave` : `build/` à côté d'un `pubspec.yaml`, `build.gradle`, `CMakeLists.txt`, `Package.swift`… → Carrières ; `.dart_tool`. Un `build` ordinaire n'est jamais touché.
+- `AtlasScene` : route du convoi (tirets vermillon, arc au-dessus du relief) et petit navire orienté, avancés au rythme de la copie ; `AtlasModel.convoyProgress`.
+- `GoSaverCore/Uninstaller.swift` : applis du dossier, restes exacts (données, caches, conteneur, préférences, état des fenêtres, journaux, données web, scripts, lancement automatique), désinstalleur de l'éditeur, besoin de mot de passe ; refus si ouverte ou appli d'Apple. 3 tests (72 au total).
+- Fiche : « Désinstaller » (applis) ou « Mettre à la corbeille » (fichiers de l'utilisateur, hors zones gérées par macOS) ; mise à la corbeille via `NSWorkspace.recycle` (comme le Finder, récupérable).
+- Registre : « et N autres · afficher » déplie par 50, « Replier ».
+- `gosaver-survey --desinstaller chemin` (lecture seule).
+
+**Objectif :** pouvoir agir sur n'importe quel lieu du disque — y compris désinstaller proprement une appli — en restant récupérable.
+
+## 2026-10-22 — Sélection multiple et actions en lot
+
+**Prompt :** « C'est bon mais là sur la droite plein d'applis et c'est chiant d'aller un à un pour désinstaller ou mettre à la corbeille ; fais en sorte qu'on puisse sélectionner pour supprimer ou pour déplacer ou autre. »
+
+**Réponse :** mode sélection dans le Registre, barre d'actions, feuille récapitulative avec éléments écartés et leur raison ; vérifié dans l'appli jusqu'à la feuille (8 dossiers build, 4,43 Go), sans exécuter.
+
+**Modifications :**
+- `App/Batch.swift` : `BatchAction` (Supprimer, Outre-mer, Lazaret), vérification de chaque emplacement avec les mêmes règles que les actions unitaires (applis → désinstallation avec restes ; désinstalleur de l'éditeur ou mot de passe requis → écarté ; zones macOS → écarté avec explication ; outre-mer → juge + meilleure proposition de rangement ; Lazaret → juge), exécution (une seule mise à la corbeille macOS, convois/Lazaret un par un), bilan.
+- Registre : « Sélectionner/Terminer », cases sur les lieux et les ruines, « tout ce qui est affiché » par section, barre « N sélectionnés · X Go » ; un groupe (« build × 8 ») coche tous ses dossiers.
+- Désinstalleur : conteneur partagé « ÉQUIPE.identifiant » inclus (suffixe exact) ; 1 test (73 au total).
+
+**Objectif :** traiter des dizaines de lieux en une fois sans perdre la vérification élément par élément.
+
+## 2026-10-22 — « Beaucoup de doublons dans les applis, j'ai deux fois Claude »
+
+**Prompt :** « Ça marche ; sinon je remarque qu'il y a beaucoup de doublons dans les applis, genre j'ai deux fois Claude. »
+
+**Réponse :** pas des doublons de fichiers : le paquet (`/Applications/Claude.app`, 646 Mo) et les données (`~/Library/Application Support/Claude`, 13,3 Go) apparaissaient comme deux lieux au même nom. Regroupés en une ligne par appli.
+
+**Modifications :**
+- `Archaeologist.ownerApp(for:)` : rattache un emplacement à son appli (paquet par nom, conteneurs et conteneurs partagés par identifiant exact ou extension « identifiant.xxx », données par nom) ; jamais par ressemblance lointaine. 2 tests (75 au total).
+- Registre et carte : dans Applications, une ligne par appli = paquet + données + conteneurs (« Claude — 14 Go »).
+- Fiche : liste « Emplacements » (Appli, Données, Conteneur, Données partagées) ; « Désinstaller » disponible depuis le regroupement.
+- Lots : une appli désinstallée emporte ses données, qui ne sont plus listées une seconde fois.
+
+**Objectif :** une appli = une ligne, avec son vrai poids total.
+
+## 2026-10-23 — Signature bloquée par une fenêtre cachée
+
+**Prompt :** « C'est parce que j'avais mis en arrière-plan et j'ai rien accepté. »
+
+**Réponse :** relance de l'assemblage ; l'utilisateur a accepté la demande d'accès au trousseau ; signature « GoSaver Dev » vérifiée (`fr.carlos.gosaver`). Registre regroupé vérifié à l'écran (« Claude — 14 Go »). L'accès complet au disque est à réactiver une fois : la version de secours signée provisoirement, lancée pendant l'échec, a fait invalider l'autorisation par macOS.
+
+**Modifications :** `bundle.sh` échoue désormais clairement si la signature avec « GoSaver Dev » rate (message + commande `security unlock-keychain`), au lieu de produire une appli mal signée.
+
+**Objectif :** ne plus jamais livrer une appli dont la signature ferait perdre l'accès complet au disque.
+
+## 2026-10-23 — Supprimer aussi les applis protégées
+
+**Prompt :** capture de la feuille « Supprimer » (Lightroom, BloonsTD6+, Acrobat, NordVPN… écartés « mot de passe administrateur requis ») + « Tu ne peux pas vraiment trouver une chose pour forcer à supprimer ? Sinon mets un bouton qui mène à l'emplacement Finder. »
+
+**Réponse :** les deux. GoSaver repasse par le Finder pour ce qu'il n'a pas le droit de déplacer : le Finder affiche sa propre demande de mot de passe, comme lors d'un glisser vers la corbeille. Bouton « Finder » sur chaque élément encore écarté.
+
+**Modifications :**
+- `App/FinderTrash.swift` : « tell application "Finder" to delete » via `osascript`, chemins passés en arguments (sans risque d'injection) ; annulation et refus d'automatisation reconnus avec un message clair.
+- `AtlasModel.recycle` : corbeille en deux temps (NSWorkspace, puis Finder pour le reste), succès vérifié sur le disque ; utilisé par la fiche et par les lots.
+- Lots : les applis « mot de passe » ne sont plus écartées (« · mot de passe ») ; restent écartées celles qui ont un désinstalleur d'éditeur ; bouton « Finder » sur chaque élément écarté.
+- `bundle.sh` : `NSAppleEventsUsageDescription` (texte de la demande d'automatisation).
+
+**Objectif :** pouvoir supprimer toute appli de l'utilisateur, sans que GoSaver ne manipule jamais le mot de passe administrateur.

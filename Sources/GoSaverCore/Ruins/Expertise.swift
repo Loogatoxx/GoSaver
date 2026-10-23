@@ -309,3 +309,31 @@ public struct Archaeologist: Sendable {
 enum ByteText {
     static func short(_ bytes: Int64) -> String { ByteCountFormatter.string(fromByteCount: bytes, countStyle: .file) }
 }
+
+// MARK: - Appartenance d'un emplacement à une appli
+
+extension Archaeologist {
+    /// L'appli installée à qui appartient un emplacement : son paquet .app, son dossier de données,
+    /// son conteneur ou son conteneur partagé. `nil` si aucune ne correspond clairement.
+    public func ownerApp(for url: URL) -> InstalledApp? {
+        let path = url.standardizedFileURL.path
+        let name = url.lastPathComponent
+        if url.pathExtension == "app" {
+            let appName = url.deletingPathExtension().lastPathComponent
+            return apps.first { $0.name == appName }
+        }
+        if path.contains("/Library/Containers/") || path.contains("/Library/Group Containers/") {
+            var parts = name.split(separator: ".").map(String.init)
+            // Préfixe d'équipe des conteneurs partagés (10 caractères).
+            if parts.first?.count == 10, parts.first?.allSatisfy({ $0.isUppercase || $0.isNumber }) == true { parts.removeFirst() }
+            let id = parts.joined(separator: ".")
+            // L'identifiant lui-même, ou celui d'une extension de l'appli (« ru.keepcoder.Telegram.TelegramShare »).
+            return apps.filter { !$0.bundleID.isEmpty && (id == $0.bundleID || id.hasPrefix($0.bundleID + ".")) }
+                .max { $0.bundleID.count < $1.bundleID.count }
+        }
+        if path.contains("/Library/Application Support/") {
+            return owner(of: name)
+        }
+        return nil
+    }
+}

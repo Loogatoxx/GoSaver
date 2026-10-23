@@ -36,6 +36,7 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>NSHighResolutionCapable</key><true/>
     <key>ATSApplicationFontsPath</key><string>Fonts</string>
     <key>CFBundleIconFile</key><string>AppIcon</string>
+    <key>NSAppleEventsUsageDescription</key><string>GoSaver demande au Finder de mettre à la corbeille les applis protégées, comme quand tu les glisses toi-même : le Finder te demande alors ton mot de passe.</string>
 </dict>
 </plist>
 PLIST
@@ -46,7 +47,12 @@ PLIST
 # à chaque compilation (l'accès est alors perdu à chaque fois).
 SIGN_ID="${GOSAVER_SIGN_ID:-GoSaver Dev}"
 if security find-identity -p codesigning 2>/dev/null | grep -q "\"$SIGN_ID\""; then
-  codesign --force --deep --sign "$SIGN_ID" "$APP"
+  if ! codesign --force --deep --sign "$SIGN_ID" "$APP"; then
+    echo "ÉCHEC de la signature avec « $SIGN_ID » : le trousseau est verrouillé ou l'accès à la clé a été refusé." >&2
+    echo "Déverrouille le trousseau puis relance (ton mot de passe de session sera demandé) :" >&2
+    echo "  security unlock-keychain ~/Library/Keychains/login.keychain-db" >&2
+    exit 1
+  fi
   echo "Signé avec « $SIGN_ID »"
 else
   codesign --force --deep --sign - "$APP"

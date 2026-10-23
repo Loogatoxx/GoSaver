@@ -18,16 +18,21 @@
 | Lazaret | Corbeille du disque externe : « Mettre au Lazaret » depuis la fiche, rangé par jour, restaurable 30 jours puis supprimé automatiquement (à l'ouverture de GoSaver, disque branché) ; système, bac à sable et iCloud refusés |
 | Ruines | Expertise : données d'applis disparues, doublons exacts, installeurs déjà utilisés, téléchargements interrompus, fichiers d'origine inconnue (contenu réel, provenance, appli, dernière ouverture) ; fiche d'expertise à tampon ; isolement au Lazaret, un par un ou en lot |
 | Réglages | Langage Atlas/Classique, apparence, animations réduites, relevé au lancement, dossiers exclus, corbeille par défaut, disque de destination, durée du Lazaret, délai « appli disparue », isolement automatique des ruines, accès, réinitialisation |
+| Désinstalleur | Appli + restes portant exactement son identifiant ou son nom, à la corbeille de macOS ; refus pour applis ouvertes et applis d'Apple ; désinstalleur de l'éditeur proposé en premier |
+| Corbeille et Registre complet | « Mettre à la corbeille » pour les fichiers de l'utilisateur ; « et N autres lieux » se déplie par 50 |
+| Carrières | Dossiers `build/` de projets (Flutter, Android, CMake, Swift) et `.dart_tool` reconnus |
+| Convoi animé | Route pointillée vermillon et navire qui avance au rythme de la copie vers l'Outre-mer |
 | Icône | Île gravée, courbes de niveau, jalon vermillon, cadre de carte (`scripts/make-icon.sh`) |
 | Assèchement | Caches, journaux et corbeille (sur demande) ; liste blanche, revérification des chemins, applis ouvertes épargnées ; érosion animée |
 
 ## À venir (dans l'ordre)
 
-1. **Convoi animé sur la carte** (route pointillée, petit navire) et **dossiers `build/`** reconnus comme Carrières.
-   - Idée relevée sur ce Mac : les dossiers `build/` des projets Flutter et Android (≈ 1,2 Go de `libflutter.so` dans IPT) se recréent à la compilation → à reconnaître comme Carrières (à côté d'un `pubspec.yaml` ou `build.gradle`).
-2. **IA locale** (Foundation Models) : explications en langage naturel, et affine le classement des propositions (ex. distinguer des ressources de projet d'une vraie photothèque).
-4. **Sons** (avec leur réglage) (synthèse modale) et passes `/design-critique`, `/accessibility-review`, `/ux-copy`.
-5. Après l'appli : aide au rangement du Lexar.
+Abandonné à la demande de l'utilisateur (2026-10-23) : les sons.
+
+1. **Passes de finition** avec les outils demandés au départ : `/design-critique`, `/accessibility-review` (contrastes, clavier, VoiceOver), `/ux-copy` (relecture de tous les textes).
+2. **Sécurité promise mais pas encore codée** : refuser de déplacer un dossier ouvert dans une appli (ex. une machine virtuelle UTM allumée) ; prévenir quand le disque externe est débranché alors qu'un dossier « avec lien » y vit.
+3. **IA locale** (Foundation Models) : explications en langage naturel et classement affiné (Apple Intelligence activé le 2026-10-23).
+4. **Rangement final** (demandé au départ) : organiser le Mac et le Lexar (cours par matière et par date, jeux et projets regroupés), y compris les 3 machines virtuelles UTM (~29 Go) vers le Lexar, à la manière d'UTM (machine éteinte, réouverture depuis le Lexar).
 
 ---
 

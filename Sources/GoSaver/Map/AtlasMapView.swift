@@ -98,6 +98,8 @@ struct AtlasMapView: View {
             scene?.setFog(Float(0.92 - 0.3 * lifted))
         }
         .onChange(of: model.selectedID) { _, id in focus(on: id) }
+        // Convoi en route : la carte montre sa traversée vers l'Outre-mer.
+        .onChange(of: model.convoyProgress) { _, progress in sail(progress) }
         .accessibilityElement()
         .accessibilityLabel(accessibilityDescription)
     }
@@ -213,6 +215,19 @@ struct AtlasMapView: View {
         destination.focus = ground
         destination.distance = min(orbit.distance, 1.45)
         fly(to: destination)
+    }
+
+    /// Trace la route du convoi et avance le navire (ou les retire quand il n'y a plus de convoi).
+    private func sail(_ progress: Float?) {
+        guard let progress, let layout, let id = model.convoySourceID,
+              let place = layout.places.first(where: { $0.id == id }) else {
+            if progress == nil, model.convoySourceID == nil { scene?.hideConvoy() }
+            return
+        }
+        let start = AtlasScene.geometry.world(normalized: place.label, on: layout)
+        let path = AtlasScene.convoyPath(from: start, layout: layout)
+        // Avec animations réduites : la route seule, le navire déjà arrivé.
+        scene?.showConvoy(path: path, progress: reduceMotion ? 1 : progress)
     }
 
     /// Vol de caméra en douceur vers une nouvelle position (0,9 s).

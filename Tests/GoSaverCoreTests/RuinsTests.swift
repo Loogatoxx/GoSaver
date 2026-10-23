@@ -116,3 +116,29 @@ struct RuinsTests {
         #expect(Archaeologist.describe(clues).contains("téléchargé depuis github.com avec Brave Browser"))
     }
 }
+
+@Suite("Appartenance à une appli")
+struct OwnershipTests {
+    let a = Archaeologist(home: URL(fileURLWithPath: "/Users/x"), apps: [
+        InstalledApp(bundleID: "com.anthropic.claudefordesktop", name: "Claude"),
+        InstalledApp(bundleID: "ru.keepcoder.Telegram", name: "Telegram"),
+        InstalledApp(bundleID: "com.brave.Browser", name: "Brave Browser"),
+    ])
+    func owner(_ path: String) -> String? { a.ownerApp(for: URL(fileURLWithPath: path))?.name }
+
+    @Test("Paquet, données, conteneurs et extensions retrouvent leur appli")
+    func owners() {
+        #expect(owner("/Applications/Claude.app") == "Claude")
+        #expect(owner("/Users/x/Library/Application Support/Claude") == "Claude")
+        #expect(owner("/Users/x/Library/Application Support/BraveSoftware") == "Brave Browser")
+        #expect(owner("/Users/x/Library/Containers/ru.keepcoder.Telegram.TelegramShare") == "Telegram")
+        #expect(owner("/Users/x/Library/Group Containers/6N38VWS5BX.ru.keepcoder.Telegram") == "Telegram")
+    }
+
+    @Test("Rien n'est rattaché par ressemblance lointaine")
+    func noFalseOwner() {
+        #expect(owner("/Users/x/Library/Containers/ru.keepcoder.TelegramX") == nil)
+        #expect(owner("/Users/x/Documents/Claude") == nil)
+        #expect(owner("/Applications/Claudette.app") == nil)
+    }
+}

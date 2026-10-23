@@ -73,6 +73,31 @@ if CommandLine.arguments.contains("--ruines") {
     exit(0)
 }
 
+// `--desinstaller chemin` : ce que le désinstalleur retirerait (lecture seule).
+if let flag = CommandLine.arguments.firstIndex(of: "--desinstaller"), CommandLine.arguments.count > flag + 1 {
+    let size = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+    do {
+        let plan = try Uninstaller().plan(for: URL(fileURLWithPath: CommandLine.arguments[flag + 1]))
+        print("Applis : \(plan.names.joined(separator: ", "))  [\(plan.bundleIDs.joined(separator: ", "))]")
+        print("Emplacement : \(plan.bundleLocation.path)  (administrateur requis : \(plan.needsAdmin))")
+        for l in plan.leftovers { print("  \(l.label) : \(size(l.bytes))  \(l.url.path)") }
+        print("Désinstalleur de l'éditeur : \(plan.vendorUninstaller?.lastPathComponent ?? "aucun")")
+        print("Total : \(size(plan.bytes))")
+    } catch { print(error.localizedDescription) }
+    exit(0)
+}
+
+// `--lieux mot` : lieux dont le chemin contient « mot » (lecture seule).
+if let flag = CommandLine.arguments.firstIndex(of: "--lieux"), CommandLine.arguments.count > flag + 1 {
+    let word = CommandLine.arguments[flag + 1].lowercased()
+    let size = { ByteCountFormatter.string(fromByteCount: $0, countStyle: .file) }
+    let survey = await Surveyor().surveyAll()
+    for place in survey.places where place.url.path.lowercased().contains(word) {
+        print("\(size(place.bytes))\t\(place.terrain.name)\t\(place.name)\t\(place.url.path)")
+    }
+    exit(0)
+}
+
 let surveyor = Surveyor()
 var planned = 0
 var done = 0

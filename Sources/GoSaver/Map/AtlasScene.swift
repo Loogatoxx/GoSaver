@@ -16,6 +16,8 @@ struct AtlasScene {
     let fog: ModelEntity
     /// Jalon d'arpenteur planté sur le lieu sélectionné.
     let marker: Entity
+    /// Route et navire du convoi en cours vers l'Outre-mer.
+    let convoy = Entity()
 
     static var geometry: BoardGeometry { BoardGeometry(boardSize: boardSize, reliefHeight: reliefHeight) }
 
@@ -91,7 +93,9 @@ struct AtlasScene {
         marker.isEnabled = false
         board.addChild(marker)
 
-        return AtlasScene(root: root, board: board, relief: relief, fog: fog, marker: marker)
+        let scene = AtlasScene(root: root, board: board, relief: relief, fog: fog, marker: marker)
+        board.addChild(scene.convoy)
+        return scene
     }
 
     /// Opacité du brouillard, de 0 (dissipé) à 1 (tout couvert).
@@ -112,6 +116,79 @@ struct AtlasScene {
         guard animated else { marker.transform = landing; return }
         marker.position = position + [0, 0.07, 0]
         marker.move(to: landing, relativeTo: marker.parent, duration: 0.32, timingFunction: .easeIn)
+    }
+
+    // MARK: - Convoi
+
+    /// Trajet du convoi : du lieu envoyé jusqu'au bord est de la planche (vers l'Outre-mer),
+    /// en arc au-dessus du relief. Points en coordonnées de la planche.
+    static func convoyPath(from start: SIMD3<Float>, layout: AtlasLayout, steps: Int = 60) -> [SIMD3<Float>] {
+        let end = SIMD3<Float>(boardSize / 2 + 0.03, 0, start.z * 0.4)
+        let control = SIMD3<Float>((start.x + end.x) / 2, 0, (start.z + end.z) / 2 - 0.12)
+        return (0...steps).map { i in
+            let t = Float(i) / Float(steps)
+            var p = (1 - t) * (1 - t) * start + 2 * (1 - t) * t * control + t * t * end
+            // Toujours au-dessus du terrain, avec une légère courbe (le convoi « vogue »).
+            let ground: Float
+            if abs(p.x) < boardSize / 2, abs(p.z) < boardSize / 2 {
+                let g = geometry.grid(x: p.x, z: p.z, size: layout.size)
+                ground = layout.height.sample(g.x, g.y) * reliefHeight
+            } else {
+                ground = 0
+            }
+            p.y = ground + 0.008 + 0.02 * sin(t * .pi)
+            return p
+        }
+    }
+
+    /// Dessine la route (tirets vermillon) et place le navire selon l'avancement (0 à 1).
+    func showConvoy(path: [SIMD3<Float>], progress: Float) {
+        if convoy.children.isEmpty {
+            let dash = UnlitMaterial(color: NSColor(Ink.vermilion))
+            // Un tiret sur deux : route en pointillé, comme sur une carte marine.
+            for i in stride(from: 0, to: path.count - 1, by: 2) {
+                let a = path[i], b = path[i + 1]
+                let piece = ModelEntity(mesh: .generateBox(width: simd_length(b - a), height: 0.0015, depth: 0.003),
+                                        materials: [dash])
+                piece.position = (a + b) / 2
+                piece.look(at: b, from: piece.position, relativeTo: convoy)
+                piece.orientation *= simd_quatf(angle: .pi / 2, axis: [0, 1, 0])
+                convoy.addChild(piece)
+            }
+            let ship = Self.makeShip()
+            ship.name = "navire"
+            convoy.addChild(ship)
+        }
+        convoy.isEnabled = true
+        guard let ship = convoy.findEntity(named: "navire") else { return }
+        let position = Float(path.count - 1) * min(max(progress, 0), 1)
+        let index = min(Int(position), path.count - 2)
+        let t = position - Float(index)
+        let here = path[index] + (path[index + 1] - path[index]) * t
+        ship.position = here + [0, 0.004, 0]
+        // Le navire regarde dans le sens de la marche.
+        ship.look(at: path[index + 1] + [0, 0.004, 0], from: ship.position, relativeTo: convoy)
+    }
+
+    func hideConvoy() {
+        convoy.children.removeAll()
+        convoy.isEnabled = false
+    }
+
+    /// Petit navire gravé : coque d'encre, voile papier, flamme vermillon.
+    static func makeShip() -> Entity {
+        let ship = Entity()
+        let hull = ModelEntity(mesh: .generateBox(width: 0.008, height: 0.005, depth: 0.022, cornerRadius: 0.002),
+                               materials: [UnlitMaterial(color: NSColor(Ink.ink))])
+        let sail = ModelEntity(mesh: .generateBox(width: 0.0012, height: 0.016, depth: 0.012),
+                               materials: [UnlitMaterial(color: NSColor(Ink.paperRaised))])
+        sail.position = [0, 0.010, 0]
+        let flag = ModelEntity(mesh: .generateBox(width: 0.0010, height: 0.003, depth: 0.006),
+                               materials: [UnlitMaterial(color: NSColor(Ink.vermilion))])
+        flag.position = [0, 0.0195, -0.003]
+        for part in [hull, sail, flag] { ship.addChild(part) }
+        ship.scale = [1.6, 1.6, 1.6]
+        return ship
     }
 
     /// Jalon : une tige d'encre et un fanion vermillon (l'accent unique de la charte).

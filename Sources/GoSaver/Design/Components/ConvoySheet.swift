@@ -32,6 +32,35 @@ struct ConvoySheet: View {
             closeButton
         case .confirmQuarantine(let url, let bytes):
             confirmQuarantine(url: url, bytes: bytes)
+        case .confirmUninstall(let plan):
+            UninstallConfirm(plan: plan, model: model)
+        case .confirmTrash(let url, let bytes):
+            twoButtons(title: "Mettre à la corbeille",
+                       text: "« \(url.lastPathComponent) » (\(Bytes.format(bytes))) part dans la corbeille de macOS. Tu peux l’en sortir depuis le Finder tant qu’elle n’est pas vidée.",
+                       action: "Mettre à la corbeille") { model.moveToTrash([url], name: url.lastPathComponent, bytes: bytes) }
+        case .trashed(let name, let bytes):
+            title("\(name) est à la corbeille")
+            Text("\(Bytes.format(bytes)) seront rendus au disque quand la corbeille sera vidée (depuis le Finder, ou avec « \(Words.drain) » en cochant la corbeille).")
+                .font(Typo.water).foregroundStyle(Ink.inkFaded)
+                .fixedSize(horizontal: false, vertical: true)
+            closeButton
+        case .confirmBatch(let plan):
+            BatchConfirm(plan: plan, model: model)
+        case .batchDone(let title, let bytes, let failures):
+            self.title(title)
+            if bytes > 0 {
+                Text(Bytes.format(bytes)).font(Typo.display).foregroundStyle(Ink.sea)
+            }
+            if !failures.isEmpty {
+                Text("Écartés ou refusés :").font(Typo.label).foregroundStyle(Ink.ochre)
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(failures.prefix(8), id: \.self) { line in
+                        Text("— " + line).font(Typo.label).foregroundStyle(Ink.inkFaded).lineLimit(2)
+                    }
+                    if failures.count > 8 { Text("et \(failures.count - 8) autres").font(Typo.label).foregroundStyle(Ink.inkFaded) }
+                }
+            }
+            closeButton
         case .confirmQuarantineRuins(let count, let bytes):
             twoButtons(title: "Isoler les ruines sûres",
                        text: "\(count) ruine\(count > 1 ? "s partent" : " part") au Lazaret de \(harborName) : \(Bytes.format(bytes)) rendus à ton Mac. Chacune reste restaurable 30 jours.",
@@ -310,5 +339,149 @@ struct DestinationPicker: View {
         // Le dossier doit être sur le disque externe, sinon ce ne serait plus un envoi outre-mer.
         guard url.standardizedFileURL.path.hasPrefix(volume.url.standardizedFileURL.path + "/") else { return }
         model.destination = .custom(url)
+    }
+}
+
+/// Confirmation de désinstallation : l'appli, ses restes (cochés), et le désinstalleur de l'éditeur s'il y en a un.
+struct UninstallConfirm: View {
+    let plan: Uninstaller.Plan
+    let model: AtlasModel
+    @State private var keptLeftovers: Set<String> = []
+
+    var body: some View {
+        Text("Désinstaller \(plan.names.first ?? "")").font(Typo.title).foregroundStyle(Ink.ink)
+        if plan.names.count > 1 {
+            Text("Le dossier contient aussi : \(plan.names.dropFirst().joined(separator: ", ")).")
+                .font(Typo.label).foregroundStyle(Ink.inkFaded)
+        }
+        Text("L’appli et ses restes partent dans la corbeille de macOS : récupérables depuis le Finder jusqu’au vidage.")
+            .font(Typo.water).foregroundStyle(Ink.inkFaded)
+            .fixedSize(horizontal: false, vertical: true)
+
+        VStack(alignment: .leading, spacing: 4) {
+            line(plan.bundleLocation.lastPathComponent, "Appli", Drainer.allocatedSize(of: plan.bundleLocation))
+            ForEach(plan.leftovers) { leftover in
+                Toggle(isOn: Binding(get: { !keptLeftovers.contains(leftover.id) },
+                                     set: { if $0 { keptLeftovers.remove(leftover.id) } else { keptLeftovers.insert(leftover.id) } })) {
+                    line(leftover.url.lastPathComponent, leftover.label, leftover.bytes)
+                }
+                .toggleStyle(SurveyCheckboxStyle())
+            }
+            if plan.leftovers.isEmpty {
+                Text("Aucun reste trouvé dans ta bibliothèque.").font(Typo.label).foregroundStyle(Ink.inkFaded)
+            }
+        }
+
+        if let vendor = plan.vendorUninstaller {
+            Text("L’éditeur fournit son propre désinstalleur (« \(vendor.deletingPathExtension().lastPathComponent) ») : il retire aussi les composants installés dans le système. C’est la méthode la plus propre.")
+                .font(Typo.label).foregroundStyle(Ink.ochre)
+                .fixedSize(horizontal: false, vertical: true)
+        } else if plan.needsAdmin {
+            Text("Cette appli appartient à l’administrateur : le Finder te demandera ton mot de passe (GoSaver ne le voit jamais).")
+                .font(Typo.label).foregroundStyle(Ink.ochre)
+        }
+
+        HStack(spacing: Space.s3) {
+            Button("Annuler") { model.closeConvoy() }
+                .buttonStyle(TraceButtonStyle()).keyboardShortcut(.cancelAction)
+            Spacer()
+            if let vendor = plan.vendorUninstaller {
+                Button("Ouvrir « \(vendor.deletingPathExtension().lastPathComponent) »") {
+                    NSWorkspace.shared.open(vendor)
+                    model.closeConvoy()
+                }
+                .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
+            } else {
+                Button("Mettre à la corbeille") {
+                    let leftovers = plan.leftovers.filter { !keptLeftovers.contains($0.id) }
+                    model.moveToTrash([plan.bundleLocation] + leftovers.map(\.url), name: plan.names.first ?? "l’appli",
+                                      bytes: Drainer.allocatedSize(of: plan.bundleLocation) + leftovers.reduce(0) { $0 + $1.bytes })
+                }
+                .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
+            }
+        }
+        if plan.vendorUninstaller != nil {
+            Button("Montrer dans le Finder pour le faire à la main") {
+                NSWorkspace.shared.activateFileViewerSelecting([plan.bundleLocation])
+            }
+            .buttonStyle(NoteButtonStyle())
+        }
+    }
+
+    private func line(_ name: String, _ label: String, _ bytes: Int64) -> some View {
+        HStack(spacing: Space.s2) {
+            Text(name).font(Typo.body).foregroundStyle(Ink.ink).lineLimit(1).truncationMode(.middle)
+            Text(label).font(Typo.label).foregroundStyle(Ink.inkFaded)
+            Spacer(minLength: Space.s2)
+            Text(Bytes.format(bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+        }
+    }
+}
+
+/// Récapitulatif d'un lot : ce qui part, ce qui est écarté et pourquoi. Une seule validation.
+struct BatchConfirm: View {
+    let plan: BatchPlan
+    let model: AtlasModel
+
+    var body: some View {
+        Text(plan.action.title).font(Typo.title).foregroundStyle(Ink.ink)
+        Text(explanation).font(Typo.water).foregroundStyle(Ink.inkFaded)
+            .fixedSize(horizontal: false, vertical: true)
+
+        Text("\(plan.ready.count) élément\(plan.ready.count > 1 ? "s" : "") · \(Bytes.format(plan.bytes))")
+            .regionStyle().foregroundStyle(Ink.inkFaded)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 3) {
+                ForEach(plan.ready) { item in
+                    HStack(spacing: Space.s2) {
+                        Text(item.title).font(Typo.body).foregroundStyle(Ink.ink).lineLimit(1).truncationMode(.middle)
+                        if let note = item.note { Text(note).font(Typo.label).foregroundStyle(Ink.inkFaded).lineLimit(1) }
+                        Spacer(minLength: Space.s2)
+                        Text(Bytes.format(item.bytes)).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+                    }
+                }
+                if !plan.refused.isEmpty {
+                    Text("Écartés").regionStyle().foregroundStyle(Ink.ochre).padding(.top, Space.s2)
+                    ForEach(plan.refused) { item in
+                        HStack(alignment: .top, spacing: Space.s2) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(item.title).font(Typo.body).foregroundStyle(Ink.ink).lineLimit(1)
+                                Text(item.refusal ?? "").font(Typo.label).foregroundStyle(Ink.inkFaded).lineLimit(2)
+                            }
+                            Spacer(minLength: Space.s2)
+                            // Pour le faire soi-même : l'élément sélectionné dans le Finder (ou son désinstalleur).
+                            Button("Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+                                .buttonStyle(NoteButtonStyle())
+                                .help("Montrer dans le Finder")
+                        }
+                    }
+                }
+            }
+        }
+        .frame(maxHeight: 260)
+
+        if plan.action == .trash, plan.ready.contains(where: { $0.note?.contains("mot de passe") == true }) {
+            Text("Le Finder demandera ton mot de passe pour les applis protégées (GoSaver ne le voit jamais).")
+                .font(Typo.label).foregroundStyle(Ink.inkFaded)
+        }
+        HStack(spacing: Space.s3) {
+            Button("Annuler") { model.closeConvoy() }
+                .buttonStyle(TraceButtonStyle()).keyboardShortcut(.cancelAction)
+            Spacer()
+            Button("\(plan.action.title) \(Bytes.format(plan.bytes))") { model.runBatch() }
+                .buttonStyle(SealButtonStyle()).keyboardShortcut(.defaultAction)
+                .disabled(plan.ready.isEmpty)
+        }
+    }
+
+    private var explanation: String {
+        switch plan.action {
+        case .trash:
+            "Tout part dans la corbeille de macOS (les applis avec leurs restes) : récupérable depuis le Finder jusqu’au vidage."
+        case .outremer:
+            "Chaque élément est copié, vérifié, puis retiré du Mac ; il est rangé dans le dossier proposé du disque externe."
+        case .lazaret:
+            "Tout part au \(Words.lazaret) du disque externe : récupérable \(Preferences.shared.lazaretDays) jours, puis supprimé automatiquement."
+        }
     }
 }

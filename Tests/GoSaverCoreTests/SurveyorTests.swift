@@ -214,3 +214,21 @@ struct SurveyorExclusionTests {
         #expect(survey.places.map(\.name) == ["garder"])
     }
 }
+
+@Suite("Enclaves — dossiers build")
+struct BuildEnclaveTests {
+    @Test("« build » à côté d'un pubspec.yaml est un déblai ; un « build » ordinaire non")
+    func buildFolders() throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent("gosaver-build-\(UUID().uuidString)")
+        defer { try? FileManager.default.removeItem(at: root) }
+        let flutter = root.appendingPathComponent("appli"), plain = root.appendingPathComponent("maquette")
+        for dir in [flutter.appendingPathComponent("build"), plain.appendingPathComponent("build")] {
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        }
+        try Data("name: appli".utf8).write(to: flutter.appendingPathComponent("pubspec.yaml"))
+
+        #expect(Enclave.terrain(for: flutter.appendingPathComponent("build")) == .quarry)
+        #expect(Enclave.terrain(for: plain.appendingPathComponent("build")) == nil)
+        #expect(Enclave.terrain(for: root.appendingPathComponent("x/.dart_tool")) == .quarry)
+    }
+}

@@ -78,13 +78,24 @@ public enum Enclave {
     /// Dossiers de déblais de développement.
     public static let quarryNames: Set<String> = [
         "node_modules", "DerivedData", ".gradle", "Pods", ".venv", "venv",
-        "__pycache__", ".next", ".nuxt", ".turbo", ".parcel-cache", ".build",
+        "__pycache__", ".next", ".nuxt", ".turbo", ".parcel-cache", ".build", ".dart_tool",
     ]
+
+    /// Un dossier « build » n'est un déblai que s'il est le résultat de compilation d'un projet :
+    /// l'un de ces fichiers doit se trouver juste à côté. Sinon, ce peut être de vrais fichiers.
+    public static let buildProjectMarkers = ["pubspec.yaml", "build.gradle", "build.gradle.kts", "settings.gradle",
+                                             "settings.gradle.kts", "CMakeLists.txt", "Package.swift"]
 
     /// Terrain d'enclave pour ce dossier, ou `nil` s'il suit sa zone.
     public static func terrain(for directory: URL) -> Terrain? {
         let name = directory.lastPathComponent
         if quarryNames.contains(name) { return .quarry }
+        if name == "build" {
+            let project = directory.deletingLastPathComponent()
+            if buildProjectMarkers.contains(where: { FileManager.default.fileExists(atPath: project.appendingPathComponent($0).path) }) {
+                return .quarry
+            }
+        }
         let parent = directory.deletingLastPathComponent().lastPathComponent
         if parent == "Library", name == "Caches" || name == "Logs" { return .marsh }
         return nil

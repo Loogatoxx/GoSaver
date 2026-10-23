@@ -106,7 +106,7 @@ public struct Lazaret: Sendable {
     /// sont revérifiés plus bas pour le Lazaret. Restent bloquants : les refus d'emplacement
     /// (système, bac à sable… — le juge s'arrête alors avant de parcourir le contenu) et iCloud
     /// (isoler un fichier synchronisé le supprimerait de tous les appareils).
-    static func onlyBlockedByMobilityConcerns(_ verdict: MobilityVerdict) -> Bool {
+    public static func onlyBlockedByMobilityConcerns(_ verdict: MobilityVerdict) -> Bool {
         guard let contents = verdict.contents else { return false }
         return contents.inICloud == 0
     }

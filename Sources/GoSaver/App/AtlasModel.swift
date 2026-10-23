@@ -59,6 +59,9 @@ final class AtlasModel {
 
     /// Repère choisi (clic sur la carte ou dans le registre).
     var selectedID: String?
+    /// Mode sélection du Registre (cases à cocher) et repères cochés.
+    var selecting = false
+    var picked: Set<String> = []
     /// Repère survolé à la souris sur la carte.
     var hoveredID: String?
 
@@ -76,16 +79,33 @@ final class AtlasModel {
 
     /// Lieux d'un terrain, du plus gros au plus petit. Les enclaves de même genre
     /// (les 300 `__pycache__` d'un disque) sont regroupées en un seul repère.
+    /// Applis installées (lues une fois) : servent à regrouper une appli et ses données.
+    private static let installedApps = InstalledApp.scan()
+    private static let appOwnership = Archaeologist(apps: installedApps)
+
     func landmarks(of terrain: Terrain) -> [Landmark] {
         var groups: [String: [Place]] = [:]
+        var byApp: [String: (app: InstalledApp, places: [Place])] = [:]
         var singles: [Landmark] = []
         for place in places where place.terrain == terrain {
+            // Applications : une ligne par appli, qui réunit son paquet, ses données et ses conteneurs.
+            if terrain == .city, !place.isEnclave, let app = Self.appOwnership.ownerApp(for: place.url) {
+                let key = app.bundleID.isEmpty ? app.name : app.bundleID
+                byApp[key, default: (app, [])].places.append(place)
+                continue
+            }
             if let kind = Self.enclaveKind(place) {
                 groups[kind, default: []].append(place)
             } else {
                 singles.append(Landmark(id: place.id, title: PlaceNames.display(place), terrain: terrain,
                                         bytes: place.bytes, places: [place]))
             }
+        }
+        for (key, entry) in byApp {
+            let members = entry.places.sorted { $0.bytes > $1.bytes }
+            let total = members.reduce(Int64(0)) { $0 + $1.bytes }
+            singles.append(Landmark(id: members.count == 1 ? members[0].id : "appli:" + key, title: entry.app.name,
+                                    terrain: terrain, bytes: total, places: members))
         }
         for (kind, members) in groups {
             let total = members.reduce(Int64(0)) { $0 + $1.bytes }
@@ -150,6 +170,13 @@ final class AtlasModel {
         /// Lazaret : confirmation, arrivée, restauration, suppression immédiate.
         case confirmQuarantine(url: URL, bytes: Int64)
         case confirmQuarantineRuins(count: Int, bytes: Int64)
+        /// Désinstallation d'une appli et de ses restes, ou mise à la corbeille de macOS.
+        case confirmUninstall(Uninstaller.Plan)
+        case confirmTrash(url: URL, bytes: Int64)
+        /// Action en lot depuis le Registre.
+        case confirmBatch(BatchPlan)
+        case batchDone(title: String, bytes: Int64, failures: [String])
+        case trashed(name: String, bytes: Int64)
         case quarantined(name: String, until: Date)
         case confirmRestore(Lazaret.Entry)
         case confirmDiscard(Lazaret.Entry)
@@ -220,8 +247,18 @@ final class AtlasModel {
         }
     }
 
+    /// Repère d'où part le convoi en cours (pour dessiner sa route sur la carte).
+    private(set) var convoySourceID: String?
+
+    /// Avancement du convoi en cours, de 0 à 1 (`nil` s'il n'y en a pas).
+    var convoyProgress: Float? {
+        guard case .running(_, let done, let total, let returning) = convoyPhase, !returning, convoySourceID != nil else { return nil }
+        return total > 0 ? Float(done) / Float(total) : 0
+    }
+
     func prepareSend(_ landmark: Landmark, verdict: MobilityVerdict) {
         guard let url = landmark.places.first?.url else { return }
+        convoySourceID = landmark.id
         convoyPhase = .confirmSend(id: landmark.id, url: url, verdict: verdict.mobility,
                                    reason: verdict.reason, bytes: verdict.bytesOnTarget ?? landmark.bytes)
         // Un envoi « avec lien » garde un dossier à lui : on ne propose pas de fusion.
@@ -229,6 +266,59 @@ final class AtlasModel {
     }
 
     func prepareReturn(_ record: Convoy.Record) { convoyPhase = .confirmReturn(record) }
+
+    // MARK: Désinstallation et corbeille de macOS
+
+    func prepareUninstall(_ url: URL) {
+        let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
+        do {
+            convoyPhase = .confirmUninstall(try Uninstaller().plan(for: url, running: running))
+        } catch {
+            convoyPhase = .failed(error.localizedDescription)
+        }
+    }
+
+    func prepareTrash(_ landmark: Landmark) {
+        guard let url = landmark.places.first?.url else { return }
+        convoyPhase = .confirmTrash(url: url, bytes: landmark.bytes)
+    }
+
+    /// Met à la corbeille de macOS (récupérable depuis le Finder jusqu'au vidage).
+    /// Même mécanisme que le glisser vers la corbeille du Finder.
+    func moveToTrash(_ urls: [URL], name: String, bytes: Int64) {
+        convoyPhase = .running(stage: .replacing, done: 0, total: bytes, returning: false)
+        // Tailles mesurées avant : après la mise à la corbeille, les chemins d'origine n'existent plus.
+        let sizes = urls.map { (url: $0, bytes: Drainer.allocatedSize(of: $0)) }
+        Task {
+            let (gone, problem) = await recycle(urls)
+            guard !gone.isEmpty else {
+                convoyPhase = .failed(problem ?? "macOS a refusé de mettre « \(name) » à la corbeille.")
+                return
+            }
+            if let survey { apply(.finished(survey.removing(sizes.filter { gone.contains($0.url) }, volume: .of()))) }
+            selectedID = nil
+            landRevision += 1
+            convoyPhase = .trashed(name: name, bytes: sizes.filter { gone.contains($0.url) }.reduce(0) { $0 + $1.bytes })
+        }
+    }
+
+    /// Corbeille en deux temps : d'abord comme le Finder le ferait sans droits particuliers ;
+    /// puis, pour ce qui a été refusé faute de droits, en demandant au Finder lui-même
+    /// (il affiche sa demande de mot de passe administrateur).
+    /// Renvoie ce qui a réellement quitté son emplacement (vérifié sur le disque).
+    func recycle(_ urls: [URL]) async -> (gone: Set<URL>, problem: String?) {
+        _ = await withCheckedContinuation { (done: CheckedContinuation<Void, Never>) in
+            NSWorkspace.shared.recycle(urls) { _, _ in done.resume() }
+        }
+        let fm = FileManager.default
+        let remaining = urls.filter { fm.fileExists(atPath: $0.path) }
+        var problem: String?
+        if !remaining.isEmpty {
+            let outcome = await Task.detached(priority: .userInitiated) { FinderTrash.trash(remaining) }.value
+            problem = outcome.message
+        }
+        return (Set(urls.filter { !fm.fileExists(atPath: $0.path) }), problem)
+    }
 
     // MARK: Lazaret
 
@@ -360,7 +450,10 @@ final class AtlasModel {
         let relative = path.hasPrefix(base) ? String(path.dropFirst(base.count)) : path
         return relative.isEmpty ? target.name : relative
     }
-    func closeConvoy() { convoyPhase = .closed }
+    func closeConvoy() {
+        convoyPhase = .closed
+        convoySourceID = nil
+    }
 
     /// Lance l'envoi confirmé. Le moteur rejuge et vérifie tout lui-même.
     func confirmSend() {
@@ -437,7 +530,7 @@ final class AtlasModel {
     /// Vider aussi la corbeille (définitif) : décoché par défaut, c'est à l'utilisateur de le vouloir.
     var includeTrash = false
     /// Change à chaque modification du terrain : la carte se reconstruit (avec érosion).
-    private(set) var landRevision = 0
+    var landRevision = 0
 
     /// Prépare le plan (lecture seule) et ouvre la feuille de confirmation.
     func prepareDrain() {
@@ -523,7 +616,7 @@ final class AtlasModel {
     // MARK: - Ruines
 
     /// Trouvailles de l'expertise (dernier relevé), sauf celles que l'utilisateur a choisi de conserver.
-    private(set) var ruins: [Ruin] = []
+    var ruins: [Ruin] = []
     var visibleRuins: [Ruin] { ruins.filter { !keptRuins.contains($0.id) } }
     /// Ruines que l'utilisateur a décidé de garder : on ne les signale plus.
     private(set) var keptRuins: Set<String> = Set(UserDefaults.standard.stringArray(forKey: "ruinesConservees") ?? [])
@@ -613,7 +706,7 @@ final class AtlasModel {
     private var pending: [Place] = []
     private var pendingSurveyed = 0
 
-    private func apply(_ event: SurveyEvent) {
+    func apply(_ event: SurveyEvent) {
         switch event {
         case .planned(let count):
             plannedPlaces = count

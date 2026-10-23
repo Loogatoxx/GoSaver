@@ -167,7 +167,7 @@ public struct MobilityJudge: Sendable {
         }
 
         // Ce qui se reforme : mieux vaut supprimer que déplacer.
-        if Enclave.quarryNames.contains(name) {
+        if Enclave.terrain(for: url) == .quarry {
             return [Finding(mobility: .discouraged, text: "Déblais de développement : ils se recréent tout seuls.",
                             advice: "Supprime-les plutôt que de les déplacer (npm install, la compilation… les recréent).")]
         }

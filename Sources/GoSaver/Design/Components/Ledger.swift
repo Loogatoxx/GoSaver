@@ -7,6 +7,8 @@ struct Ledger: View {
     let model: AtlasModel
     /// Nombre de lieux montrés par terrain avant « et N autres ».
     var placesPerTerrain = 4
+    /// Nombre de lieux affichés par terrain quand on a déplié la liste.
+    @State private var shown: [Terrain: Int] = [:]
 
     private var terrains: [Terrain] {
         Terrain.allCases
@@ -20,6 +22,9 @@ struct Ledger: View {
             content.fixedSize(horizontal: false, vertical: true).frame(maxHeight: .infinity, alignment: .top).clipped().modifier(Sheet())
         } else {
             ScrollView { content }.scrollIndicators(.never).modifier(Sheet())
+                .safeAreaInset(edge: .bottom, spacing: 0) {
+                    if model.selecting, !model.picked.isEmpty { BatchBar(model: model) }
+                }
         }
     }
 
@@ -36,8 +41,19 @@ struct Ledger: View {
 
     private var content: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(Words.ledger).regionStyle().foregroundStyle(Ink.inkFaded)
-                .padding(.bottom, Space.s2)
+            HStack(alignment: .firstTextBaseline) {
+                Text(Words.ledger).regionStyle().foregroundStyle(Ink.inkFaded)
+                Spacer()
+                if model.phase == .surveyed {
+                    Button(model.selecting ? "Terminer" : "Sélectionner") {
+                        withAnimation(Motion.settle) {
+                            if model.selecting { model.endSelection() } else { model.selecting = true; model.selectedID = nil }
+                        }
+                    }
+                    .buttonStyle(NoteButtonStyle())
+                }
+            }
+            .padding(.bottom, Space.s2)
             GraduatedRule()
             if model.diskAccess == .denied {
                 accessNotice
@@ -121,8 +137,13 @@ struct Ledger: View {
             .padding(.vertical, Space.s3)
 
             ForEach(model.visibleRuins.prefix(8)) { ruin in
-                Button { model.toggleSelection(ruin.id) } label: {
+                Button { if model.selecting { model.togglePick(ruin.id) } else { model.toggleSelection(ruin.id) } } label: {
                     HStack(spacing: Space.s2) {
+                        if model.selecting {
+                            Image(systemName: model.picked.contains(ruin.id) ? "xmark.square" : "square")
+                                .foregroundStyle(model.picked.contains(ruin.id) ? Ink.vermilion : Ink.ink)
+                                .padding(.leading, -(13 + Space.s2))
+                        }
                         VStack(alignment: .leading, spacing: 1) {
                             Text(ruin.kind == .orphanAppData ? ruinTitle(ruin) : ruin.url.lastPathComponent)
                                 .font(model.selectedID == ruin.id ? Typo.bodyStrong : Typo.body)
@@ -138,7 +159,7 @@ struct Ledger: View {
                     }
                     .padding(.leading, 22 + Space.s3)
                     .padding(.vertical, 3)
-                    .background(model.selectedID == ruin.id ? Ink.paperSunken : .clear)
+                    .background(model.selectedID == ruin.id || model.picked.contains(ruin.id) ? Ink.paperSunken : .clear)
                     .contentShape(Rectangle())
                 }
                 .buttonStyle(.plain)
@@ -283,6 +304,17 @@ struct Ledger: View {
                     .contentTransition(.numericText())
             }
             .padding(.vertical, Space.s3)
+            if model.selecting, !places.isEmpty {
+                // « Tout » coche les lieux affichés de la section (pas ceux encore repliés).
+                let visible = places.prefix(shown[terrain] ?? placesPerTerrain).map(\.id)
+                let all = !visible.isEmpty && visible.allSatisfy(model.picked.contains)
+                Toggle(isOn: Binding(get: { all }, set: { model.setPicked(Array(visible), $0) })) {
+                    Text("tout ce qui est affiché").font(Typo.label).foregroundStyle(Ink.inkFaded)
+                }
+                .toggleStyle(SurveyCheckboxStyle())
+                .padding(.leading, 22 + Space.s3)
+                .padding(.bottom, Space.s1)
+            }
 
             // Massif : on dit franchement ce qui n'a pas pu être relevé, et comment l'ouvrir.
             if terrain == .massif, model.diskAccess != .granted, let denied = model.survey?.deniedPaths.count, denied > 0 {
@@ -291,21 +323,35 @@ struct Ledger: View {
                     .padding(.leading, 22 + Space.s3)
                     .padding(.bottom, Space.s2)
             }
-            ForEach(places.prefix(placesPerTerrain)) { place in
+            let limit = shown[terrain] ?? placesPerTerrain
+            ForEach(places.prefix(limit)) { place in
                 Button {
-                    model.toggleSelection(place.id)
+                    if model.selecting { model.togglePick(place.id) } else { model.toggleSelection(place.id) }
                 } label: {
                     row(place.title, Bytes.format(place.bytes),
-                        selected: model.selectedID == place.id,
-                        hovered: model.hoveredID == place.id)
+                        selected: model.selecting ? model.picked.contains(place.id) : model.selectedID == place.id,
+                        hovered: model.hoveredID == place.id,
+                        checkbox: model.selecting ? model.picked.contains(place.id) : nil)
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(model.selectedID == place.id ? .isSelected : [])
                 .accessibilityHint("Montre ce lieu sur la carte")
             }
-            if places.count > placesPerTerrain {
-                let rest = places.dropFirst(placesPerTerrain).reduce(Int64(0)) { $0 + $1.bytes }
-                row("et \(places.count - placesPerTerrain) autres lieux", Bytes.format(rest), faded: true)
+            // « et N autres lieux » se déplie par paquets de 50, du plus gros au plus petit.
+            HStack(spacing: Space.s3) {
+                if places.count > limit {
+                    let rest = places.dropFirst(limit).reduce(Int64(0)) { $0 + $1.bytes }
+                    Button {
+                        withAnimation(Motion.settle) { shown[terrain] = limit + 50 }
+                    } label: {
+                        row("et \(places.count - limit) autres · afficher", Bytes.format(rest), faded: true)
+                    }
+                    .buttonStyle(.plain)
+                }
+                if limit > placesPerTerrain {
+                    Button("Replier") { withAnimation(Motion.settle) { shown[terrain] = nil } }
+                        .buttonStyle(NoteButtonStyle())
+                }
             }
             Rectangle().fill(Ink.contour).frame(height: Stroke.hairline)
                 .padding(.top, Space.s2)
@@ -316,8 +362,23 @@ struct Ledger: View {
     }
 
     private func row(_ name: String, _ figure: String?, faded: Bool = false,
-                     selected: Bool = false, hovered: Bool = false) -> some View {
+                     selected: Bool = false, hovered: Bool = false, checkbox: Bool? = nil) -> some View {
         HStack(spacing: Space.s2) {
+            if let checkbox {
+                // Case de registre : carré d'encre, croix vermillon quand elle est cochée.
+                ZStack {
+                    Rectangle().strokeBorder(Ink.ink, lineWidth: Stroke.rule)
+                    if checkbox {
+                        Path { p in
+                            p.move(to: CGPoint(x: 3, y: 3)); p.addLine(to: CGPoint(x: 10, y: 10))
+                            p.move(to: CGPoint(x: 10, y: 3)); p.addLine(to: CGPoint(x: 3, y: 10))
+                        }
+                        .stroke(Ink.vermilion, lineWidth: 1.5)
+                    }
+                }
+                .frame(width: 13, height: 13)
+                .padding(.leading, -(13 + Space.s2))
+            }
             Text(name)
                 .font(faded ? Typo.water : (selected ? Typo.bodyStrong : Typo.body))
                 .foregroundStyle(faded ? Ink.inkFaded : Ink.ink)
@@ -341,5 +402,38 @@ struct Ledger: View {
         }
         .contentShape(Rectangle())
         .animation(Motion.quick, value: selected)
+    }
+}
+
+/// Barre d'actions de la sélection : nombre, taille, et les actions possibles sur tout le lot.
+struct BatchBar: View {
+    let model: AtlasModel
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: Space.s2) {
+            HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
+                Text("\(model.picked.count) sélectionné\(model.picked.count > 1 ? "s" : "")")
+                    .font(Typo.bodyStrong).foregroundStyle(Ink.ink)
+                Text(Bytes.format(model.pickedBytes)).font(Typo.figure).foregroundStyle(Ink.ink)
+                Spacer()
+                Button("Décocher") { model.picked = [] }.buttonStyle(NoteButtonStyle())
+            }
+            HStack(spacing: Space.s2) {
+                Button("Supprimer") { model.prepareBatch(.trash) }
+                    .buttonStyle(TraceButtonStyle()).fixedSize()
+                    .help("Corbeille de macOS (les applis avec leurs restes)")
+                if model.harborVolume != nil {
+                    Button(Words.atlas ? "Outre-mer" : "Déplacer") { model.prepareBatch(.outremer) }
+                        .buttonStyle(TraceButtonStyle()).fixedSize()
+                        .help("Envoyer sur le disque externe")
+                    Button(Words.atlas ? "Lazaret" : "Isoler") { model.prepareBatch(.lazaret) }
+                        .buttonStyle(TraceButtonStyle()).fixedSize()
+                        .help("Corbeille du disque externe, vidée automatiquement")
+                }
+            }
+        }
+        .padding(Space.s4)
+        .background(Ink.paperRaised)
+        .overlay(alignment: .top) { Rectangle().fill(Ink.ink).frame(height: Stroke.rule) }
     }
 }
