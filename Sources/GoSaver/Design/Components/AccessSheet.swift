@@ -12,7 +12,7 @@ struct AccessSheet: View {
         PaperModal(width: 520, onDismiss: { model.accessSheetOpen = false }) {
             VStack(alignment: .leading, spacing: Space.s2) {
                 Text("Ouvrir les zones fermées").font(Typo.title).foregroundStyle(Ink.ink)
-                Text("macOS garde certains dossiers sous clé : la corbeille, Mail, Safari, les données de certaines applis. Sans la clé, le géomètre les range dans le Massif sans pouvoir les relever.")
+                Text(Words.atlas ? "macOS garde certains dossiers sous clé : la corbeille, Mail, Safari, les données de certaines applis. Sans la clé, le géomètre les range dans le Massif sans pouvoir les relever." : "macOS protège certains dossiers : la corbeille, Mail, Safari, les données de certaines applis. Sans cet accès, GoSaver compte leur taille dans « Système macOS » sans pouvoir les analyser.")
                     .font(Typo.water).foregroundStyle(Ink.inkFaded)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -63,7 +63,7 @@ struct AccessSheet: View {
                 }
                 .stroke(Ink.forest, style: StrokeStyle(lineWidth: 1.8, lineCap: .round, lineJoin: .round))
                 .frame(width: 14, height: 13)
-                Text("Accès accordé. Refais le relevé pour lever le reste du brouillard.")
+                Text(Words.atlas ? "Accès accordé. Refais le relevé pour lever le reste du brouillard." : "Accès accordé. Relance l’analyse pour voir les dossiers protégés.")
                     .font(Typo.bodyStrong).foregroundStyle(Ink.forest)
             }
             Button(Words.redoSurvey) {

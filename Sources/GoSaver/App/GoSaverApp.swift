@@ -100,6 +100,7 @@ struct RootView: View {
                 if let id = model.selectedID, let ruin = model.ruin(id: id) {
                     RuinSheet(ruin: ruin, model: model)
                         .padding(.top, Space.s7)
+                        .padding(.bottom, Space.s5)
                         .padding(.leading, Space.s7)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .id(id)
@@ -111,6 +112,7 @@ struct RootView: View {
                                onUninstall: { model.prepareUninstall($0) },
                                onTrash: { model.prepareTrash(landmark) })
                         .padding(.top, Space.s7)
+                        .padding(.bottom, Space.s5)
                         .padding(.leading, Space.s7)
                         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
                         .id(id)
@@ -157,8 +159,9 @@ struct RootView: View {
                 .font(Typo.water).foregroundStyle(Ink.inkFaded)
         case .surveyed:
             Text(Words.surveyDone).regionStyle().foregroundStyle(Ink.inkFaded)
+            // Bleu mer : c'est l'eau que l'on va regagner. Le vermillon reste réservé au bouton d'action.
             Text(Bytes.format(model.reclaimableBytes))
-                .font(Typo.display).foregroundStyle(Ink.vermilion)
+                .font(Typo.display).foregroundStyle(Ink.sea)
             Text(Words.surveyedLine)
                 .font(Typo.water).foregroundStyle(Ink.inkFaded)
                 .fixedSize(horizontal: false, vertical: true)
@@ -174,7 +177,7 @@ struct RootView: View {
                 .buttonStyle(SealButtonStyle())
                 .keyboardShortcut(.defaultAction)
         case .surveying:
-            Button("Relevé…") {}
+            Button("\(Words.surveying)…") {}
                 .buttonStyle(SealButtonStyle())
                 .disabled(true)
         case .surveyed:

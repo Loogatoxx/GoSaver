@@ -9,6 +9,13 @@ struct RuinSheet: View {
     let model: AtlasModel
 
     var body: some View {
+        ViewThatFits(in: .vertical) {
+            sheet
+            ScrollView { sheet }.scrollIndicators(.never)
+        }
+    }
+
+    private var sheet: some View {
         VStack(alignment: .leading, spacing: Space.s3) {
             HStack(alignment: .top) {
                 Text(ruin.kind.label).regionStyle().foregroundStyle(Ink.inkFaded)
@@ -31,7 +38,7 @@ struct RuinSheet: View {
             VStack(alignment: .leading, spacing: 4) {
                 ForEach(ruin.reasons + extraClues, id: \.self) { clue in
                     HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
-                        Text("—").font(Typo.body).foregroundStyle(Ink.contour)
+                        Text("—").font(Typo.body).foregroundStyle(Ink.inkFaded).accessibilityHidden(true)
                         Text(clue).font(Typo.body).foregroundStyle(Ink.ink)
                             .fixedSize(horizontal: false, vertical: true)
                     }
@@ -41,6 +48,20 @@ struct RuinSheet: View {
             Text(ruin.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
                 .font(Typo.figure).foregroundStyle(Ink.inkFaded)
                 .lineLimit(2).truncationMode(.middle).textSelection(.enabled)
+
+            GraduatedRule()
+            AdviceSection {
+                var choices = model.harborVolume != nil ? ["mettre au Lazaret"] : []
+                choices.append("garder")
+                let facts = """
+                Élément : \(ruin.url.lastPathComponent) (\(ruin.kind.label))
+                Chemin : \(ruin.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~"))
+                Taille : \(Bytes.format(ruin.bytes))
+                Verdict de GoSaver : \(ruin.verdict.stamp) — \(ruin.summary)
+                Indices : \((ruin.reasons + extraClues).joined(separator: " "))
+                """
+                return (facts, choices)
+            }
 
             actions
         }
@@ -68,7 +89,9 @@ struct RuinSheet: View {
         HStack(spacing: Space.s3) {
             if model.harborVolume != nil {
                 Button(Words.toLazaret) {
-                    model.convoyPhase = .confirmQuarantine(url: ruin.url, bytes: ruin.bytes)
+                    model.whenFree([ruin.url], name: ruin.url.lastPathComponent) {
+                        model.convoyPhase = .confirmQuarantine(url: ruin.url, bytes: ruin.bytes)
+                    }
                 }
                 .buttonStyle(TraceButtonStyle())
             }
@@ -83,7 +106,7 @@ struct RuinSheet: View {
         Button("Montrer dans le Finder") { NSWorkspace.shared.activateFileViewerSelecting([ruin.url]) }
             .buttonStyle(NoteButtonStyle())
         if model.harborVolume == nil {
-            Text("Branche le disque externe pour pouvoir mettre au Lazaret.")
+            Text("Branche le disque externe pour pouvoir utiliser « \(Words.lazaret) ».")
                 .font(Typo.label).foregroundStyle(Ink.inkFaded)
         }
     }

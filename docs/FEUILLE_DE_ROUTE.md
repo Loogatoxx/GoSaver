@@ -29,10 +29,9 @@
 
 Abandonné à la demande de l'utilisateur (2026-10-23) : les sons.
 
-1. **Passes de finition** avec les outils demandés au départ : `/design-critique`, `/accessibility-review` (contrastes, clavier, VoiceOver), `/ux-copy` (relecture de tous les textes).
-2. **Sécurité promise mais pas encore codée** : refuser de déplacer un dossier ouvert dans une appli (ex. une machine virtuelle UTM allumée) ; prévenir quand le disque externe est débranché alors qu'un dossier « avec lien » y vit.
-3. **IA locale** (Foundation Models) : explications en langage naturel et classement affiné (Apple Intelligence activé le 2026-10-23).
-4. **Rangement final** (demandé au départ) : organiser le Mac et le Lexar (cours par matière et par date, jeux et projets regroupés), y compris les 3 machines virtuelles UTM (~29 Go) vers le Lexar, à la manière d'UTM (machine éteinte, réouverture depuis le Lexar).
+Fait le 2026-10-23 : passes de finition (critique, accessibilité, rédaction), sécurité (refus des dossiers ouverts via `lsof`, alerte des liens rompus quand le disque est débranché), IA locale (avis Foundation Models dans les fiches, choisi parmi les seules actions permises).
+
+1. **Rangement final** (demandé au départ) : organiser le Mac et le Lexar (cours par matière et par date, jeux et projets regroupés), y compris les 3 machines virtuelles UTM (~29 Go) vers le Lexar, à la manière d'UTM (machine éteinte, réouverture depuis le Lexar).
 
 ---
 

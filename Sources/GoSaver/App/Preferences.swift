@@ -129,6 +129,13 @@ enum Words {
     static var sendOutremer: String { atlas ? "Envoyer outre-mer" : "Déplacer vers le disque externe" }
     static var lazaret: String { atlas ? "Lazaret" : "Corbeille du disque externe" }
     static var toLazaret: String { atlas ? "Mettre au Lazaret" : "Mettre à la corbeille du disque" }
+    /// Ce que l'assèchement a libéré.
+    static var reclaimed: String { atlas ? "rendus à la mer" : "libérés" }
+    /// Ce qui reste invisible sans l'accès complet au disque.
+    static var hiddenWithoutAccess: String {
+        atlas ? "Sans l’accès complet au disque, la corbeille et certains dossiers restent dans le brouillard."
+              : "Sans l’accès complet au disque, la corbeille et certains dossiers ne sont pas analysés."
+    }
     static var closedZones: String { atlas ? "Zones fermées" : "Dossiers protégés" }
 
     static var idleLine: String {

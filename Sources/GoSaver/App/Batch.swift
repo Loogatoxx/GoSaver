@@ -88,7 +88,14 @@ extension AtlasModel {
                 }
                 // Une appli désinstallée emporte ses données : celles-ci ne doivent pas apparaître une seconde fois.
                 let covered = Set(checked.filter { $0.refusal == nil }.flatMap { $0.targets.dropFirst() }.map(\.path))
-                return checked.filter { !covered.contains($0.url.path) }
+                // Garde-fou : rien de ce qu'un programme tient ouvert ne bouge.
+                let held = InUse.holders(of: locations.map(\.url))
+                return checked.filter { !covered.contains($0.url.path) }.map { item in
+                    guard item.refusal == nil, let who = held[item.url] else { return item }
+                    var refused = item
+                    refused.refusal = "ouvert par \(who.sorted().joined(separator: ", ")) : ferme-le d’abord"
+                    return refused
+                }
             }.value
             convoyPhase = .confirmBatch(BatchPlan(action: action, items: items))
         }

@@ -250,9 +250,10 @@ private struct AccessPane: View {
                     ForEach(["Les noms, tailles et dates des fichiers.",
                              "Les attributs que macOS ajoute aux téléchargements (site d’origine, appli).",
                              "Le début des fichiers mystères, pour reconnaître leur vrai contenu.",
+                             "L’avis de l’IA est calculé par Apple Intelligence sur ce Mac, hors ligne.",
                              "Rien ne quitte ce Mac : aucune connexion, aucun envoi."], id: \.self) { line in
                         HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
-                            Text("—").foregroundStyle(Ink.contour)
+                            Text("—").foregroundStyle(Ink.inkFaded).accessibilityHidden(true)
                             Text(line).font(Typo.body).foregroundStyle(Ink.ink)
                         }
                     }

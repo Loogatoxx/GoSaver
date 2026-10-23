@@ -78,8 +78,9 @@ struct ScaleBar: View {
             ticks.move(to: CGPoint(x: tx, y: top))
             ticks.addLine(to: CGPoint(x: tx, y: top - (major ? 6 : 3)))
             if major {
+                // La première graduation s'aligne sur le bord, sinon le « 0 » serait coupé à moitié.
                 context.draw(Text("\(gb)").font(Typo.label).foregroundStyle(Ink.inkFaded),
-                             at: CGPoint(x: tx, y: 0), anchor: .top)
+                             at: CGPoint(x: tx, y: 0), anchor: gb == 0 ? .topLeading : .top)
             }
         }
         context.stroke(ticks, with: .color(Ink.ink), lineWidth: Stroke.hairline)

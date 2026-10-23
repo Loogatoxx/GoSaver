@@ -76,13 +76,33 @@ struct Ledger: View {
                     .padding(.top, Space.s4)
             }
             if !model.visibleRuins.isEmpty { ruinsSection }
-            ForEach(terrains, id: \.self) { terrain in
-                section(terrain)
+            LazyVStack(alignment: .leading, spacing: 0, pinnedViews: [.sectionHeaders]) {
+                ForEach(terrains, id: \.self) { terrain in
+                    Section {
+                        section(terrain)
+                    } header: {
+                        sectionHeader(terrain)
+                    }
+                }
             }
+            if model.harborVolume == nil, !model.brokenLinks.isEmpty { brokenLinksWarning }
             outremer
             lazaret
         }
         .padding(Space.s5)
+    }
+
+    /// Disque débranché alors que des dossiers liés y vivent : on le dit, avec leurs noms.
+    private var brokenLinksWarning: some View {
+        let names = model.brokenLinks.map { URL(fileURLWithPath: $0).lastPathComponent }
+        return VStack(alignment: .leading, spacing: Space.s2) {
+            Text(Words.atlas ? "Liaison rompue" : "Disque externe débranché").regionStyle().foregroundStyle(Ink.ochre)
+            Text("\(names.count) dossier\(names.count > 1 ? "s liés sont" : " lié est") inaccessible\(names.count > 1 ? "s" : "") tant que le disque externe n’est pas rebranché : \(names.prefix(5).joined(separator: ", "))\(names.count > 5 ? "…" : ""). Les applis qui s’en servent peuvent signaler une erreur ; rien n’est perdu.")
+                .font(Typo.label).foregroundStyle(Ink.ink)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.top, Space.s5)
+        .accessibilityElement(children: .combine)
     }
 
     /// L'autre continent : ce qui est déjà parti sur le disque externe, et comment le rapatrier.
@@ -274,7 +294,7 @@ struct Ledger: View {
     private var accessNotice: some View {
         VStack(alignment: .leading, spacing: Space.s2) {
             Text(Words.closedZones).font(Typo.heading).foregroundStyle(Ink.ink)
-            Text("Sans l’accès complet au disque, la corbeille et certains dossiers restent dans le brouillard.")
+            Text(Words.hiddenWithoutAccess)
                 .font(Typo.label).foregroundStyle(Ink.inkFaded)
                 .fixedSize(horizontal: false, vertical: true)
             Button("Ouvrir l’accès") { model.accessSheetOpen = true }
@@ -285,11 +305,9 @@ struct Ledger: View {
         .overlay(alignment: .bottom) { Rectangle().fill(Ink.contour).frame(height: Stroke.hairline) }
     }
 
-    @ViewBuilder
-    private func section(_ terrain: Terrain) -> some View {
-        let places = model.landmarks(of: terrain)
-        VStack(alignment: .leading, spacing: 0) {
-            HStack(alignment: .firstTextBaseline, spacing: Space.s3) {
+    /// En-tête d'un terrain : reste collé en haut du registre pendant qu'on fait défiler ses lieux.
+    private func sectionHeader(_ terrain: Terrain) -> some View {
+        HStack(alignment: .firstTextBaseline, spacing: Space.s3) {
                 TerrainSwatch(terrain: terrain)
                     .frame(width: 22, height: 14)
                     .alignmentGuide(.firstTextBaseline) { $0[.bottom] - 2 }
@@ -304,6 +322,13 @@ struct Ledger: View {
                     .contentTransition(.numericText())
             }
             .padding(.vertical, Space.s3)
+        .background(Ink.paperRaised)
+    }
+
+    @ViewBuilder
+    private func section(_ terrain: Terrain) -> some View {
+        let places = model.landmarks(of: terrain)
+        VStack(alignment: .leading, spacing: 0) {
             if model.selecting, !places.isEmpty {
                 // « Tout » coche les lieux affichés de la section (pas ceux encore repliés).
                 let visible = places.prefix(shown[terrain] ?? placesPerTerrain).map(\.id)
@@ -328,14 +353,14 @@ struct Ledger: View {
                 Button {
                     if model.selecting { model.togglePick(place.id) } else { model.toggleSelection(place.id) }
                 } label: {
-                    row(place.title, Bytes.format(place.bytes),
+                    row(place.title, Bytes.format(place.bytes), subtitle: place.subtitle,
                         selected: model.selecting ? model.picked.contains(place.id) : model.selectedID == place.id,
                         hovered: model.hoveredID == place.id,
                         checkbox: model.selecting ? model.picked.contains(place.id) : nil)
                 }
                 .buttonStyle(.plain)
                 .accessibilityAddTraits(model.selectedID == place.id ? .isSelected : [])
-                .accessibilityHint("Montre ce lieu sur la carte")
+                .accessibilityHint(model.selecting ? "Coche ou décoche ce lieu" : "Montre ce lieu sur la carte")
             }
             // « et N autres lieux » se déplie par paquets de 50, du plus gros au plus petit.
             HStack(spacing: Space.s3) {
@@ -361,7 +386,7 @@ struct Ledger: View {
         .accessibilityLabel("\(Words.terrain(terrain)), \(Words.terrainDetail(terrain)), \(Bytes.format(model.bytes(of: terrain)))")
     }
 
-    private func row(_ name: String, _ figure: String?, faded: Bool = false,
+    private func row(_ name: String, _ figure: String?, subtitle: String? = nil, faded: Bool = false,
                      selected: Bool = false, hovered: Bool = false, checkbox: Bool? = nil) -> some View {
         HStack(spacing: Space.s2) {
             if let checkbox {
@@ -384,9 +409,17 @@ struct Ledger: View {
                 .foregroundStyle(faded ? Ink.inkFaded : Ink.ink)
                 .lineLimit(1)
                 .truncationMode(.middle)
+                .layoutPriority(1)
+            // Précision pour les homonymes et les noms génériques (« Messages · Bibliothèque »).
+            if let subtitle {
+                Text(subtitle).font(Typo.label).foregroundStyle(Ink.inkFaded)
+                    .lineLimit(1).truncationMode(.tail)
+            }
             Spacer(minLength: Space.s2)
+            // La taille ne se coupe jamais : c'est le nom et la précision qui cèdent la place.
             if let figure {
                 Text(figure).font(Typo.figure).foregroundStyle(Ink.inkFaded)
+                    .fixedSize().layoutPriority(2)
             }
         }
         .padding(.leading, 22 + Space.s3)
@@ -416,7 +449,7 @@ struct BatchBar: View {
                     .font(Typo.bodyStrong).foregroundStyle(Ink.ink)
                 Text(Bytes.format(model.pickedBytes)).font(Typo.figure).foregroundStyle(Ink.ink)
                 Spacer()
-                Button("Décocher") { model.picked = [] }.buttonStyle(NoteButtonStyle())
+                Button("Tout décocher") { model.picked = [] }.buttonStyle(NoteButtonStyle())
             }
             HStack(spacing: Space.s2) {
                 Button("Supprimer") { model.prepareBatch(.trash) }

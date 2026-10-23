@@ -47,6 +47,8 @@ final class AtlasModel {
         let terrain: Terrain
         let bytes: Int64
         let places: [Place]
+        /// Précision quand le nom seul ne suffit pas (homonyme, nom générique) : la zone d'origine.
+        var subtitle: String? = nil
 
         var fileCount: Int { places.reduce(0) { $0 + $1.fileCount } }
         /// Les plus gros fichiers de tous les lieux du repère.
@@ -113,7 +115,26 @@ final class AtlasModel {
             singles.append(Landmark(id: "enclave:\(terrain.rawValue):" + kind, title: title, terrain: terrain,
                                     bytes: total, places: members))
         }
-        return singles.sorted { $0.bytes > $1.bytes }
+        return Self.disambiguate(singles.sorted { $0.bytes > $1.bytes })
+    }
+
+    /// Noms trop génériques pour être compris seuls.
+    private static let genericNames: Set<String> = [
+        "Application Support", "Updates", "Frameworks", "Utilities", "Developer", "Caches", "Logs", "Preferences",
+        "Containers", "Data", "Resources", "Library", "Public", "Support", "Extensions", "Receipts", "Audio", "Fonts",
+    ]
+
+    /// Ajoute la zone d'origine (« Bibliothèque système », « Conteneurs d’applis »…) aux homonymes et aux noms génériques.
+    private static func disambiguate(_ landmarks: [Landmark]) -> [Landmark] {
+        var counts: [String: Int] = [:]
+        for l in landmarks { counts[l.title, default: 0] += 1 }
+        return landmarks.map { landmark in
+            guard landmark.places.count == 1, let zone = landmark.places.first?.zone,
+                  counts[landmark.title, default: 0] > 1 || genericNames.contains(landmark.title) else { return landmark }
+            var copy = landmark
+            copy.subtitle = zone
+            return copy
+        }
     }
 
     /// Genre d'enclave (« node_modules », « Caches ») si le lieu en est une.
@@ -183,6 +204,8 @@ final class AtlasModel {
         case discarded(name: String)
         case returned(name: String)
         case failed(String)
+        /// Refus : un programme utilise encore ce qu'on voulait déplacer ou jeter.
+        case inUse(name: String, holders: [String])
     }
 
     var convoyPhase: ConvoyPhase = .closed
@@ -226,6 +249,7 @@ final class AtlasModel {
     func refreshHarbor() {
         harborVolume = Self.currentHarbor()
         convoys = harborVolume.map { Convoy(target: $0).records() } ?? []
+        checkLinks()
         if let harbor = harborVolume {
             // Le Lazaret se vide de lui-même : ce qui a dépassé ses 30 jours part maintenant.
             let lazaret = Lazaret(target: harbor, retention: Preferences.shared.lazaretRetention)
@@ -247,6 +271,24 @@ final class AtlasModel {
         }
     }
 
+    /// Dossiers partis « avec lien » dont le lien ne mène plus nulle part : le disque externe
+    /// est débranché. Les applis qui les utilisent ne les trouvent plus tant qu'il n'est pas rebranché.
+    private(set) var brokenLinks: [String] = []
+
+    /// Le registre de bord vit sur le disque externe : on garde ici la liste des dossiers liés,
+    /// pour pouvoir prévenir même quand le disque n'est plus là.
+    private func checkLinks() {
+        let key = "dossiersLies"
+        if harborVolume != nil {
+            UserDefaults.standard.set(convoys.filter(\.linked).map(\.original), forKey: key)
+        }
+        let fm = FileManager.default
+        brokenLinks = (UserDefaults.standard.stringArray(forKey: key) ?? []).filter { path in
+            // Encore un lien (pas rapatrié), mais sa cible a disparu.
+            (try? fm.destinationOfSymbolicLink(atPath: path)) != nil && !fm.fileExists(atPath: path)
+        }
+    }
+
     /// Repère d'où part le convoi en cours (pour dessiner sa route sur la carte).
     private(set) var convoySourceID: String?
 
@@ -258,11 +300,30 @@ final class AtlasModel {
 
     func prepareSend(_ landmark: Landmark, verdict: MobilityVerdict) {
         guard let url = landmark.places.first?.url else { return }
-        convoySourceID = landmark.id
-        convoyPhase = .confirmSend(id: landmark.id, url: url, verdict: verdict.mobility,
-                                   reason: verdict.reason, bytes: verdict.bytesOnTarget ?? landmark.bytes)
-        // Un envoi « avec lien » garde un dossier à lui : on ne propose pas de fusion.
-        suggest(for: url, allowMerge: verdict.mobility == .free)
+        whenFree([url], name: landmark.title) { [self] in
+            convoySourceID = landmark.id
+            convoyPhase = .confirmSend(id: landmark.id, url: url, verdict: verdict.mobility,
+                                       reason: verdict.reason, bytes: verdict.bytesOnTarget ?? landmark.bytes)
+            // Un envoi « avec lien » garde un dossier à lui : on ne propose pas de fusion.
+            suggest(for: url, allowMerge: verdict.mobility == .free)
+        }
+    }
+
+    /// Garde-fou avant tout déplacement ou suppression : si un programme a encore un fichier
+    /// ouvert là-dedans (une machine virtuelle allumée, une appli ouverte…), on refuse et on dit
+    /// lequel fermer. Sinon on continue vers la confirmation habituelle.
+    func whenFree(_ urls: [URL], name: String, then next: @escaping @MainActor () -> Void) {
+        convoyPhase = .running(stage: .judging, done: 0, total: 0, returning: false)
+        Task {
+            let held = await Task.detached(priority: .userInitiated) { InUse.holders(of: urls) }.value
+            let holders = held.values.reduce(into: Set<String>()) { $0.formUnion($1) }
+            if holders.isEmpty {
+                next()
+            } else {
+                Log.convoy.notice("Refus, en cours d’utilisation : \(name, privacy: .public) par \(holders.sorted().joined(separator: ", "), privacy: .public)")
+                convoyPhase = .inUse(name: name, holders: holders.sorted())
+            }
+        }
     }
 
     func prepareReturn(_ record: Convoy.Record) { convoyPhase = .confirmReturn(record) }
@@ -271,16 +332,18 @@ final class AtlasModel {
 
     func prepareUninstall(_ url: URL) {
         let running = Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier))
-        do {
-            convoyPhase = .confirmUninstall(try Uninstaller().plan(for: url, running: running))
-        } catch {
-            convoyPhase = .failed(error.localizedDescription)
+        whenFree([url], name: url.deletingPathExtension().lastPathComponent) { [self] in
+            do {
+                convoyPhase = .confirmUninstall(try Uninstaller().plan(for: url, running: running))
+            } catch {
+                convoyPhase = .failed(error.localizedDescription)
+            }
         }
     }
 
     func prepareTrash(_ landmark: Landmark) {
         guard let url = landmark.places.first?.url else { return }
-        convoyPhase = .confirmTrash(url: url, bytes: landmark.bytes)
+        whenFree([url], name: landmark.title) { [self] in convoyPhase = .confirmTrash(url: url, bytes: landmark.bytes) }
     }
 
     /// Met à la corbeille de macOS (récupérable depuis le Finder jusqu'au vidage).
@@ -324,7 +387,7 @@ final class AtlasModel {
 
     func prepareQuarantine(_ landmark: Landmark) {
         guard let url = landmark.places.first?.url else { return }
-        convoyPhase = .confirmQuarantine(url: url, bytes: landmark.bytes)
+        whenFree([url], name: landmark.title) { [self] in convoyPhase = .confirmQuarantine(url: url, bytes: landmark.bytes) }
     }
     func prepareRestore(_ entry: Lazaret.Entry) { convoyPhase = .confirmRestore(entry) }
     func prepareDiscard(_ entry: Lazaret.Entry) { convoyPhase = .confirmDiscard(entry) }

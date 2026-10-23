@@ -19,7 +19,7 @@ struct DrainSheet: View {
                     .font(Typo.display).foregroundStyle(Ink.sea)
                     .contentTransition(.numericText())
                     .animation(Motion.quick, value: removed)
-                Text("rendus à la mer").font(Typo.water).foregroundStyle(Ink.inkFaded)
+                Text(Words.reclaimed).font(Typo.water).foregroundStyle(Ink.inkFaded)
             case .done(let removed, let failures):
                 done(removed: removed, failures: failures)
             case .closed:
@@ -78,7 +78,7 @@ struct DrainSheet: View {
         HStack(alignment: .firstTextBaseline, spacing: Space.s2) {
             Text(Bytes.format(removed)).font(Typo.display).foregroundStyle(Ink.sea)
         }
-        Text("rendus à la mer. La carte a été redessinée.")
+        Text(Words.atlas ? "rendus à la mer. La carte a été redessinée." : "libérés. Le détail a été mis à jour.")
             .font(Typo.water).foregroundStyle(Ink.inkFaded)
         if failures > 0 {
             Text("\(failures) élément\(failures > 1 ? "s" : "") n’\(failures > 1 ? "ont" : "a") pas pu être supprimé\(failures > 1 ? "s" : "") (protégé\(failures > 1 ? "s" : "") par macOS ou en cours d’usage). Ils restent en place.")

@@ -1,4 +1,5 @@
 import SwiftUI
+import AppKit
 
 /// Espacements, traits, rayons et ombres (docs/DESIGN_SYSTEM.md §5).
 enum Space {
@@ -26,10 +27,16 @@ enum Radius {
 }
 
 /// Mouvements (docs/DESIGN_SYSTEM.md §7).
+@MainActor
 enum Motion {
-    static let quick = Animation.easeOut(duration: 0.12)
-    static let settle = Animation.spring(response: 0.32, dampingFraction: 0.86)
-    static let survey = Animation.easeInOut(duration: 0.9)
+    /// Réglage « Réduire les animations » de macOS, ou celui de GoSaver :
+    /// les fiches apparaissent alors en fondu bref, sans glisser ni rebondir (WCAG 2.3.3).
+    static var reduced: Bool {
+        NSWorkspace.shared.accessibilityDisplayShouldReduceMotion || Preferences.shared.reducedAnimations
+    }
+    static var quick: Animation { .easeOut(duration: 0.12) }
+    static var settle: Animation { reduced ? .easeOut(duration: 0.1) : .spring(response: 0.32, dampingFraction: 0.86) }
+    static var survey: Animation { reduced ? .easeOut(duration: 0.1) : .easeInOut(duration: 0.9) }
 }
 
 extension View {

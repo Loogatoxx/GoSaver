@@ -48,6 +48,11 @@ enum PlaceNames {
         if raw.count == 36, raw.split(separator: "-").map(\.count) == [8, 4, 4, 4, 12] {
             return "Conteneur anonyme"
         }
+        // Identifiant inversé (« com.isaacmarovitz.Whisky ») sans appli installée : sa dernière partie.
+        let parts = raw.split(separator: ".")
+        if parts.count >= 3, !raw.contains(" "), let last = parts.last, last.count >= 3 {
+            return String(last)
+        }
         return withoutAppSuffix(raw)
     }
 

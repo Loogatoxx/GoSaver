@@ -18,6 +18,14 @@ struct PlaceSheet: View {
     @State private var mobility: (verdict: MobilityVerdict, target: TargetVolume?)?
 
     var body: some View {
+        // Sur une petite fenêtre, la fiche défile au lieu de déborder.
+        ViewThatFits(in: .vertical) {
+            sheet
+            ScrollView { sheet }.scrollIndicators(.never)
+        }
+    }
+
+    private var sheet: some View {
         VStack(alignment: .leading, spacing: Space.s3) {
             Text("\(Words.terrain(landmark.terrain)) · \(Words.terrainDetail(landmark.terrain))")
                 .regionStyle()
@@ -80,6 +88,9 @@ struct PlaceSheet: View {
                     .lineLimit(2).truncationMode(.middle)
                     .textSelection(.enabled)
             }
+
+            GraduatedRule()
+            AdviceSection { adviceRequest }
 
             HStack(spacing: Space.s3) {
                 // Une appli (seule ou avec ses données) se désinstalle : le paquet et tous ses restes.
@@ -158,6 +169,55 @@ struct PlaceSheet: View {
             }
         }
         .accessibilityElement(children: .contain)
+    }
+
+    /// Ce que l'IA reçoit : les faits établis par le moteur, et seulement les actions que la fiche permet.
+    private var adviceRequest: (facts: String, choices: [String]) {
+        let app = landmark.places.first(where: { Uninstaller.looksLikeApp($0.url) })?.url
+        let single = landmark.places.count == 1 ? landmark.places.first?.url : nil
+        // « garder » en dernier : les petits modèles favorisent la première option proposée.
+        var choices: [String] = []
+        if landmark.terrain.regenerates { choices.append(Words.atlas ? "assécher avec les autres caches" : "nettoyer avec les autres caches") }
+        if app != nil { choices.append("désinstaller") }
+        else if let single, Self.canTrash(single) { choices.append("mettre à la corbeille") }
+        if let mobility, mobility.target != nil, single != nil {
+            if mobility.verdict.mobility <= .withLink { choices.append("envoyer sur le disque externe") }
+            if mobility.verdict.mobility < .forbidden || mobility.verdict.contents != nil { choices.append("mettre au Lazaret") }
+        }
+        choices.append("garder")
+        var facts = """
+        Élément : \(landmark.title)
+        Catégorie : \(Words.terrainDetail(landmark.terrain))\(landmark.terrain.regenerates ? " (se recrée seul)" : "")
+        Taille : \(Bytes.format(landmark.bytes)), \(fileCountText)
+        Emplacements : \(landmark.places.map { $0.url.path.replacingOccurrences(of: NSHomeDirectory(), with: "~") }.prefix(5).joined(separator: " ; "))
+        """
+        facts += "\nCe que GoSaver sait : " + Self.knownNature(landmark)
+        let names = landmark.largestFiles.prefix(4).map { "\($0.url.lastPathComponent) (\(Bytes.format($0.bytes)))" }
+        if !names.isEmpty { facts += "\nPlus gros fichiers : \(names.joined(separator: ", "))" }
+        if let url = single ?? app, let used = Advisor.lastUsed(url) {
+            facts += "\nDernière ouverture : \(used.formatted(date: .long, time: .omitted)) (aujourd’hui : \(Date.now.formatted(date: .long, time: .omitted)))"
+        }
+        if let mobility {
+            facts += "\nDisque externe : \(mobility.verdict.mobility.label) — \(mobility.verdict.reason)"
+            if let advice = mobility.verdict.advice { facts += "\nConseil de GoSaver : \(advice)" }
+        }
+        return (facts, choices)
+    }
+
+    /// Ce que le moteur sait déjà de la nature du lieu, en clair, pour que l'IA ne devine pas.
+    static func knownNature(_ landmark: AtlasModel.Landmark) -> String {
+        switch landmark.terrain {
+        case .marsh: "caches ou journaux, recréés automatiquement par les applis ; les supprimer est sans risque."
+        case .quarry: "outils de développement (dépendances, SDK, compilations) ; ils se retéléchargent ou se recompilent, mais ça prend du temps."
+        case .delta: "téléchargements : souvent des installeurs ou des fichiers déjà copiés ailleurs."
+        case .forest: "photos, vidéos ou musique : souvent irremplaçables, on ne les jette pas ; le disque externe leur convient bien."
+        case .fields: "documents de l’utilisateur : à garder ou à déplacer, jamais à jeter sans certitude."
+        case .shore: "corbeille : déjà jetée, vidée définitivement à l’assèchement."
+        default:
+            Uninstaller.looksLikeApp(landmark.places.first?.url ?? URL(fileURLWithPath: "/"))
+                ? "une appli et ses données."
+                : "fichiers de l’utilisateur ; nature exacte inconnue."
+        }
     }
 
     /// Nature d'un emplacement d'appli, pour la liste « Emplacements ».

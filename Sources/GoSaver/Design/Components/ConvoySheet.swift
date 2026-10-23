@@ -63,10 +63,10 @@ struct ConvoySheet: View {
             closeButton
         case .confirmQuarantineRuins(let count, let bytes):
             twoButtons(title: "Isoler les ruines sûres",
-                       text: "\(count) ruine\(count > 1 ? "s partent" : " part") au Lazaret de \(harborName) : \(Bytes.format(bytes)) rendus à ton Mac. Chacune reste restaurable 30 jours.",
+                       text: "\(count) ruine\(count > 1 ? "s partent" : " part") dans « \(Words.lazaret) » de \(harborName) : \(Bytes.format(bytes)) rendus à ton Mac. Chacune reste restaurable 30 jours.",
                        action: "Isoler \(Bytes.format(bytes))") { model.confirmQuarantineRuins() }
         case .quarantined(let name, let until):
-            title("\(name) est au Lazaret")
+            title("\(name) est dans « \(Words.lazaret) »")
             Text("Ton Mac est libéré. Récupérable jusqu’au \(until.formatted(date: .long, time: .omitted)) ; ensuite, supprimé pour de bon.")
                 .font(Typo.water).foregroundStyle(Ink.inkFaded)
                 .fixedSize(horizontal: false, vertical: true)
@@ -81,7 +81,7 @@ struct ConvoySheet: View {
                        action: "Supprimer définitivement") { model.confirmDiscard() }
         case .discarded(let name):
             title("\(name) est supprimé")
-            Text("Il n’est plus au Lazaret.").font(Typo.water).foregroundStyle(Ink.inkFaded)
+            Text("Il n’est plus dans « \(Words.lazaret) ».").font(Typo.water).foregroundStyle(Ink.inkFaded)
             closeButton
         case .returned(let name):
             title("\(name) est revenu à sa place")
@@ -91,6 +91,12 @@ struct ConvoySheet: View {
         case .failed(let message):
             title("Le convoi s’est arrêté")
             Text(message).font(Typo.body).foregroundStyle(Ink.ochre)
+                .fixedSize(horizontal: false, vertical: true)
+            closeButton
+        case .inUse(let name, let holders):
+            title("« \(name) » est en cours d’utilisation")
+            Text("Ouvert par \(holders.joined(separator: ", ")). Ferme-le (ou éteins la machine virtuelle), puis réessaie : GoSaver ne déplace et ne supprime jamais ce qu’un programme est en train d’utiliser, la copie pourrait être abîmée.")
+                .font(Typo.body).foregroundStyle(Ink.ink)
                 .fixedSize(horizontal: false, vertical: true)
             closeButton
         case .closed:
@@ -450,7 +456,7 @@ struct BatchConfirm: View {
                             }
                             Spacer(minLength: Space.s2)
                             // Pour le faire soi-même : l'élément sélectionné dans le Finder (ou son désinstalleur).
-                            Button("Finder") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
+                            Button("Montrer") { NSWorkspace.shared.activateFileViewerSelecting([item.url]) }
                                 .buttonStyle(NoteButtonStyle())
                                 .help("Montrer dans le Finder")
                         }

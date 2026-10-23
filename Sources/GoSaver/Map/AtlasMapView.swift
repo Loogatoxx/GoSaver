@@ -43,6 +43,10 @@ struct AtlasMapView: View {
             orbit.apply(to: camera)
         }
         .background(Ink.paper)
+        // La vue AppKit de RealityKit ne doit jamais recevoir la souris : sinon, après un
+        // glisser ou un clic sur la carte, elle devient « premier répondeur » et avale
+        // parfois le clic suivant destiné aux boutons posés au-dessus d'elle.
+        .allowsHitTesting(false)
         // La vue RealityKit est une vue AppKit qui garde les clics pour elle : on pose
         // par-dessus un calque SwiftUI transparent qui reçoit tous les gestes.
         .overlay {
@@ -300,9 +304,9 @@ struct Orbit: Equatable {
     /// Inclinaison au-dessus de l'horizon, en radians (25° à 80°).
     var pitch: Float = 50 * .pi / 180
     /// Distance au point visé, en mètres.
-    var distance: Float = 2.5
+    var distance: Float = 2.75
     /// Point visé : le centre de la planche, ou le lieu sélectionné.
-    var focus: SIMD3<Float> = [0, 0.02, 0.2]
+    var focus: SIMD3<Float> = [0, 0.02, 0.15]
 
     static let pitchRange: ClosedRange<Float> = (25 * .pi / 180)...(80 * .pi / 180)
     static let distanceRange: ClosedRange<Float> = 0.5...3.4

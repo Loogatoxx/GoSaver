@@ -327,3 +327,37 @@
 - `bundle.sh` : `NSAppleEventsUsageDescription` (texte de la demande d'automatisation).
 
 **Objectif :** pouvoir supprimer toute appli de l'utilisateur, sans que GoSaver ne manipule jamais le mot de passe administrateur.
+
+## 2026-10-23 — Critique de design, audit d'accessibilité, clics perdus sur la carte
+
+**Prompt :** « j ai trouver un autre defaut parfois quand je clique sur … un bouton dans la partie de gauche avec la carte … pour recliquer faut cliquer autre part » (pendant les passes de finition).
+
+**Réponse / modifications :**
+- Critique : sous-titre des homonymes et des noms génériques dans le registre (« Developer · Bibliothèque système »), titres de section collants au défilement, chiffre récupérable en bleu mer, « 0 » de l'échelle aligné, caméra recadrée.
+- Clics perdus : la vue AppKit de RealityKit ne reçoit plus la souris (`allowsHitTesting(false)`), seul le calque de gestes SwiftUI la reçoit.
+- Accessibilité : contrastes vérifiés (tous ≥ 4,5:1 pour le texte), les tirets « — » passent en sépia lisible avec une étiquette VoiceOver, les animations des fiches respectent « Réduire les animations », l'aide VoiceOver des lignes suit le mode sélection.
+
+**Objectif :** finitions avant la sécurité et l'IA locale.
+
+## 2026-10-23 — Rédaction et sécurité
+
+**Prompt :** « c'est bon continue »
+
+**Réponse / modifications :**
+- Rédaction : le mode Classique n'emploie plus « brouillard », « géomètre », « Lazaret » ni « rendus à la mer » ; « Finder » devient « Montrer », « Décocher » devient « Tout décocher », le bouton d'attente suit le lexique.
+- Sécurité 1 : `InUse` (GoSaverCore) interroge `lsof` avant de ranger, mettre au Lazaret, jeter ou désinstaller, en lot comme à l'unité. Si un programme tient un fichier ouvert (VM UTM allumée, appli ouverte), c'est refusé avec son nom. 4 tests (79 au total).
+- Sécurité 2 : la liste des dossiers partis « avec lien » est gardée sur le Mac ; si le disque externe est débranché, le registre prévient lesquels sont inaccessibles.
+
+**Objectif :** ne jamais abîmer une copie en cours d'utilisation, et ne pas laisser l'utilisateur sans explication quand un lien est rompu.
+
+## 2026-10-23 — IA locale (Apple Intelligence)
+
+**Prompt :** suite du plan (« je viens d'activer apple intelligence »).
+
+**Réponse / modifications :**
+- `Advisor` : avis du modèle Foundation Models exécuté sur le Mac, hors ligne. Génération guidée par schéma dynamique (les macros `@Generable` ne sont pas fournies sans Xcode) : à quoi sert l'élément, raisonnement, puis conseil choisi **uniquement parmi les actions permises par le moteur**.
+- Faits fournis : nature connue du terrain, taille, emplacements, plus gros fichiers, dernière ouverture Spotlight, verdict et conseil du moteur. Mode déterministe (greedy), « garder » en dernière option, raisonnement avant le choix : sans ces réglages le modèle conseillait toujours « garder ».
+- Section « Avis du cartographe » / « Avis de l'IA » dans les fiches de lieu et de ruine, avec mention « peut se tromper, la décision reste la tienne ».
+- Fiches défilantes quand la fenêtre est petite ; tailles du registre jamais coupées sur deux lignes ; puces « — » cachées à VoiceOver ; le Lazaret d'une ruine passe aussi par le garde-fou « en cours d'utilisation ».
+
+**Objectif :** une IA qui explique et conseille sans jamais décider à la place de l'utilisateur.
