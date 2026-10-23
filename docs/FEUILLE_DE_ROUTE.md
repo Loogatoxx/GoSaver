@@ -31,7 +31,7 @@ Abandonné à la demande de l'utilisateur (2026-10-23) : les sons.
 
 Fait le 2026-10-23 : passes de finition (critique, accessibilité, rédaction), sécurité (refus des dossiers ouverts via `lsof`, alerte des liens rompus quand le disque est débranché), IA locale (avis Foundation Models dans les fiches, choisi parmi les seules actions permises).
 
-1. **Rangement final** (demandé au départ) : organiser le Mac et le Lexar (cours par matière et par date, jeux et projets regroupés), y compris les 3 machines virtuelles UTM (~29 Go) vers le Lexar, à la manière d'UTM (machine éteinte, réouverture depuis le Lexar).
+Rangement final fait le 2026-10-23 (voir `docs/PLAN_RANGEMENT.md`). Restent à décider : le cache caché `Perso/Projet/.onzer-build-cache.sparsebundle` (62 Go) sur le Lexar, et les captures automatiques vers le Lexar (abandonnées : il faudrait un service macOS permanent).
 
 ---
 

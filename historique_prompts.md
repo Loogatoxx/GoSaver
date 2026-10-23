@@ -361,3 +361,18 @@
 - Fiches défilantes quand la fenêtre est petite ; tailles du registre jamais coupées sur deux lignes ; puces « — » cachées à VoiceOver ; le Lazaret d'une ruine passe aussi par le garde-fou « en cours d'utilisation ».
 
 **Objectif :** une IA qui explique et conseille sans jamais décider à la place de l'utilisateur.
+
+## 2026-10-23 — Rangement final du Mac et du Lexar
+
+**Prompt :** « c'est bon tu peu faire si possible faire aussi que le dossier des capture et enregistrement d ecran vont en prioriter sur le Lexar, et s il est pas connecter, ça met sur celui actuel qui est capture deja dans document »
+
+**Réponse / modifications :**
+- Commit `a622bd0` poussé (finitions, sécurité, IA locale).
+- Captures automatiques : il fallait un LaunchAgent (service macOS permanent) ; bloqué par l'outil de sécurité de la session, puis abandonné à la demande de l'utilisateur. Fichier `CaptureRouter.swift` retiré.
+- Plan écrit dans `docs/PLAN_RANGEMENT.md`, validé par l'utilisateur, puis appliqué :
+  - Lexar : `Cours/IPT`, `Machines virtuelles` (+ `ISO et installeurs`), `Jeux`, `Projets`, `Perso/Captures d’écran`, `Perso/Vidéos`, `Sauvegardes`, `Applis` ; dossiers vides `Movies`, `Music`, `Pictures` retirés. Renommages sur le même disque, sans écrasement.
+  - VM UTM du Mac (31 Go) copiées sur le Lexar, vérifiées (seuls les fichiers AppleDouble `._` d'exFAT diffèrent), originaux retirés, VM rouvertes dans UTM depuis le Lexar. Mac : 55 → 77 Go libres.
+  - Téléchargements rangés dans `Documents/IPT/cours-2026-2027/<matière>`, `Documents/Perso`, `Developer` ; doublons identiques (vérifiés avec `cmp`) à la corbeille de macOS.
+  - 332 captures de `Documents/capture` copiées, vérifiées puis déplacées vers le Lexar (le dossier reste, macOS y range les nouvelles).
+
+**Objectif :** un Mac léger et un Lexar lisible par grandes familles.
